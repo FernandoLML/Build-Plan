@@ -144,3 +144,121 @@ O sucesso do projeto será avaliado com base nos seguintes indicadores:
   - Facilidade de uso do sistema  
 
 ---
+
+## 2. Engenharia de Requisitos
+
+Esta seção define as funcionalidades e restrições do sistema **Build-Plan**, com foco na transformação de dados técnicos em suporte à tomada de decisão.
+
+---
+
+### 2.1 Personas
+
+#### Persona 1: Ricardo (Empreiteiro Autônomo)
+
+- **Contexto:**  
+  Gerencia de 2 a 3 obras simultâneas de pequeno porte  
+
+- **Objetivos:**  
+  - Saber exatamente o que comprar para a próxima semana  
+  - Evitar falta de material no canteiro  
+
+- **Dificuldades:**  
+  - Perda de tempo buscando informações em PDFs  
+  - Dependência de conversas em WhatsApp  
+  - Falta de organização centralizada  
+
+---
+
+#### Persona 2: Ana (Proprietária da Obra)
+
+- **Contexto:**  
+  Pessoa física construindo sua primeira casa  
+
+- **Objetivos:**  
+  - Acompanhar o progresso da obra  
+  - Entender onde os materiais estão sendo utilizados  
+
+- **Dificuldades:**  
+  - Falta de conhecimento técnico  
+  - Insegurança quanto à transparência no uso dos insumos  
+
+---
+
+### 2.2 Casos de Uso Principais
+
+- **UC01 — Importar Memorial Descritivo**  
+  O usuário insere o texto ou documento técnico para iniciar a extração de insumos  
+
+- **UC02 — Vincular Material à Etapa**  
+  O gestor associa um material específico a uma fase da obra (ex: cimento → fundação)  
+
+- **UC03 — Gerar Plano de Aquisições**  
+  O sistema identifica os materiais necessários com base na etapa atual  
+
+- **UC04 — Atualizar Rastreabilidade**  
+  O usuário altera o status do material (ex: de *Previsto* para *Aplicado*)  
+
+---
+
+### 2.3 Requisitos Funcionais (RF)
+
+- **RF01 — Cadastro de Obra e Ambientes**  
+  Permitir organizar a construção em unidades lógicas (fundação, alvenaria, acabamento)  
+
+- **RF02 — Importação de Documentos**  
+  Permitir o uso do memorial descritivo como fonte primária de dados  
+
+- **RF03 — Catálogo de Insumos**  
+  Permitir cadastro de materiais com especificações, unidades e quantidades  
+
+- **RF04 — Associação Dinâmica**  
+  Permitir vincular materiais a uma ou mais etapas e locais da obra  
+
+- **RF05 — Relatório de Compras**  
+  Gerar listas de compras organizadas por fase da obra  
+
+- **RF06 — Monitoramento de Status**  
+  Acompanhar o ciclo de vida do material (previsto → recebido → aplicado)  
+
+---
+
+### 2.4 Requisitos Não Funcionais (RNF)
+
+- **RNF01 — Usabilidade**  
+  Interface simples e intuitiva, adequada para usuários não técnicos  
+
+- **RNF02 — Confiabilidade**  
+  Validação de dados para evitar inconsistências e duplicações  
+
+- **RNF03 — Recuperação de Informação**  
+  Busca rápida por materiais, etapas ou ambientes  
+
+- **RNF04 — Auditabilidade**  
+  Registro histórico de alterações para rastreabilidade e segurança  
+
+---
+
+### 2.5 Regras de Negócio
+
+- **RN01**  
+  Um material só pode ser marcado como *Aplicado* se estiver previamente com status *Recebido*  
+
+- **RN02**  
+  A exclusão de uma etapa deve alertar sobre materiais vinculados que ficarão sem associação  
+
+- **RN03**  
+  Quantidades de materiais não podem assumir valores negativos  
+
+---
+
+### 2.6 Fora do Escopo
+
+Para garantir a viabilidade do projeto de graduação, os seguintes itens não fazem parte do escopo:
+
+- Módulo financeiro completo (contas a pagar, fluxo de caixa, impostos)  
+- Integração com softwares BIM (Building Information Modeling)  
+- Aplicativo mobile nativo (o sistema será web responsivo)  
+- Leitura automática de PDF com alta precisão (extração será assistida/manual)  
+- Sistema multiusuário com hierarquia complexa de permissões  
+
+---
