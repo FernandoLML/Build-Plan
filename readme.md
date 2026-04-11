@@ -76,5 +76,4 @@ O Build-Plan atua como uma ponte entre o planejamento técnico e a execução pr
 ##  Estrutura de Pastas
 
 ### Docs
-
-    **Contém os diagramas e documentos do projeto
+- Contém os diagramas e documentos do projeto
