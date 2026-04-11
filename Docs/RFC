@@ -1,0 +1,146 @@
+# RFC: Request for Comments — Projeto de Portfólio  
+**Engenharia de Software – Católica SC**
+
+---
+
+## Identificação
+
+- **Título do Projeto:** Buil-Plan – Sistema Web de Gestão de Insumos e Etapas de Obra  
+- **Linha de Projeto (Direction):** Web  
+- **Autor:** Fernando Lucas Moraes da Luz 
+- **Data da Proposta:** 12/04/2026  
+- **Versão:** 1.0  
+
+---
+
+## 1. Visão do Produto e Impacto (O Problema)
+
+### 1.1 Contexto e Problema
+
+O setor da construção civil, especialmente em obras de pequeno e médio porte, sofre com a falta de planejamento estruturado e fluxos de informação fragmentados entre o escritório e o canteiro de obras.
+
+Atualmente, o controle é realizado de forma:
+
+- Manual (papel ou planilhas)  
+- Descentralizada  
+- Pouco integrada  
+
+Isso gera diversos problemas, como:
+
+- Desperdício de materiais e custos não previstos  
+- Atrasos por falta de insumos no momento da execução  
+- Dificuldade em traduzir documentos técnicos (ex: Memorial Descritivo) em ações práticas  
+
+---
+
+### 1.2 Origem da Demanda e Evidências
+
+A demanda surge da necessidade de:
+
+- Pequenos empreiteiros  
+- Mestres de obra  
+- Proprietários de obras  
+
+Esses usuários não possuem acesso a sistemas ERP complexos devido a:
+
+- Alto custo  
+- Elevada complexidade  
+
+**Evidência de interesse:**  
+Estudos e observações do setor indicam que o fluxo de informação descontínuo é uma das principais dores na construção civil.
+
+O sistema proposto atua como uma ponte entre:
+
+- Documentação técnica (projeto/memorial)  
+- Execução operacional da obra  
+
+---
+
+### 1.3 Análise de Soluções Existentes (Benchmark)
+
+#### 1. Sienge
+- **Pontos Fortes:** Plataforma completa e integrada  
+- **Limitações:** Alto custo e curva de aprendizado elevada  
+
+#### 2. Prevision
+- **Pontos Fortes:** Foco em planejamento e cronogramas  
+- **Limitações:** Voltado para grandes obras e planejamento macro  
+
+#### 3. Planilhas Excel
+- **Pontos Fortes:** Baixo custo e flexibilidade  
+- **Limitações:**  
+  - Falta de rastreabilidade  
+  - Dados fragmentados  
+  - Propenso a erros  
+
+---
+
+### Comparação Geral
+
+| Solução      | Pontos Fortes              | Limitações                              |
+|--------------|---------------------------|------------------------------------------|
+| Sienge       | Completo e integrado      | Custo elevado e complexidade             |
+| Planilhas    | Baixo custo e flexível    | Sem rastreabilidade, sujeito a erros     |
+| ConstruPlan  | Foco no memorial técnico  | Escopo inicial limitado                  |
+
+---
+
+### Diferencial do Projeto
+
+O **Build-Plan** tem como principal diferencial:
+
+- Transformar o *Memorial Descritivo* em uma estrutura digital  
+- Permitir extração assistida de materiais  
+- Vincular materiais diretamente às etapas da obra  
+
+Isso reduz a distância entre planejamento e execução.
+
+---
+
+### 1.4 Público-Alvo
+
+O sistema é destinado a:
+
+- Pequenos empreiteiros e mestres de obra  
+- Arquitetos e engenheiros autônomos  
+- Proprietários de obras (pessoa física)  
+
+---
+
+### 1.5 Objetivos do Projeto
+
+#### Objetivo Geral
+
+Desenvolver um sistema web para apoiar a gestão da construção, organizando:
+
+- Etapas  
+- Materiais  
+- Necessidades de compra  
+
+A partir de documentos técnicos.
+
+---
+
+#### Objetivos Específicos
+
+- Implementar extração assistida de materiais a partir do Memorial Descritivo  
+- Vincular materiais a etapas e locais da obra (ex: fundação, alvenaria)  
+- Gerar planos de aquisição com base no cronograma  
+
+---
+
+### 1.6 Métricas de Sucesso (KPIs)
+
+O sucesso do projeto será avaliado com base nos seguintes indicadores:
+
+- **Redução do tempo de levantamento de materiais**  
+  Comparado ao método manual  
+
+- **Precisão das listas de compra**  
+  - Meta: > 90% de assertividade  
+
+- **Satisfação do usuário**  
+  - Clareza na rastreabilidade de materiais  
+  - Facilidade de uso do sistema  
+
+---

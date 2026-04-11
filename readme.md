@@ -72,3 +72,9 @@ Tudo isso a partir de cadastro manual e informações de documentos técnicos.
 O Build-Plan atua como uma ponte entre o planejamento técnico e a execução prática, garantindo maior controle, previsibilidade e eficiência na gestão de obras.
 
 ---
+
+##  Estrutura de Pastas
+
+### Docs
+
+    **Contém os diagramas e documentos do projeto
