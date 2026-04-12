@@ -83,3 +83,5 @@ O Build-Plan atua como uma ponte entre o planejamento técnico e a execução pr
 # Sugestão de Melhoria (revisão por Pares)
 
 Bruno Luis Pereira - Sugiro criar um sistema de notificações que avise o usuário quando uma etapa está prestes a começar (ex: 15 dias antes), gerando automaticamente a ordem de compra dos materiais necessários para evitar atrasos.
+
+Bruno Franzosi - Seria interessante permitir que o usuário importe preços de referência da tabela SINAPI (Sistema Nacional de Pesquisa de Custos e Índices da Construção Civil) para que a estimativa de custos não dependa apenas de inserção manual.
