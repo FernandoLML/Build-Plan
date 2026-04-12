@@ -77,3 +77,9 @@ O Build-Plan atua como uma ponte entre o planejamento técnico e a execução pr
 
 ### Docs
 - Contém os diagramas e documentos do projeto
+
+ Avaliação Ramires Silva Paes 
+
+ Alerta de Ponto de Pedido (Just-in-Time): Sugiro criar um sistema de notificações que avise o usuário quando uma etapa está prestes a começar (ex: 15 dias antes), gerando automaticamente a ordem de compra dos materiais necessários para evitar atrasos.
+
+
