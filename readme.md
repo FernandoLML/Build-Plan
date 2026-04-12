@@ -77,3 +77,7 @@ O Build-Plan atua como uma ponte entre o planejamento técnico e a execução pr
 
 ### Docs
 - Contém os diagramas e documentos do projeto
+
+# Sugestões
+
+Bruno Franzosi: Seria interessante permitir que o usuário importe preços de referência da tabela SINAPI (Sistema Nacional de Pesquisa de Custos e Índices da Construção Civil) para que a estimativa de custos não dependa apenas de inserção manual.
