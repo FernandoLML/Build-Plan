@@ -461,3 +461,270 @@ O projeto adota TDD como prática de desenvolvimento, com testes escritos previa
 | Documentação | Wiki do GitHub | Documentação técnica junto ao repositório, facilitando acesso e colaboração — requisito obrigatório |
 | Alertas | Node-cron | Agendamento simples de tarefas periódicas dentro do próprio processo Node |
 | Autenticação | JWT + bcrypt | Padrão consolidado para APIs stateless sem necessidade de servidor de sessão |
+
+---
+
+## 6. Segurança e Privacidade
+
+### 6.1 Segurança da Aplicação
+
+O Build-Plan adota práticas de segurança baseadas no OWASP Top 10, priorizando as vulnerabilidades mais comuns em aplicações web.
+
+#### Autenticação e Autorização
+
+- Autenticação via **JWT (JSON Web Token)** com expiração configurável (padrão: 8h)
+- Senhas armazenadas com hash **bcrypt** (fator de custo mínimo 12)
+- Rotas protegidas por middleware de verificação de token em todas as requisições autenticadas
+- Cada usuário acessa apenas obras que lhe pertencem — validação de propriedade em nível de Service antes de qualquer operação
+
+#### Proteção contra ataques comuns (OWASP Top 10)
+
+| Risco | Medida adotada |
+|---|---|
+| Injeção SQL | Uso do ORM Prisma com queries parametrizadas — nenhuma query SQL montada manualmente |
+| Quebra de autenticação | JWT com assinatura HS256, expiração curta e validação em cada requisição |
+| Exposição de dados sensíveis | HTTPS obrigatório em produção; senhas nunca retornadas nas respostas da API |
+| Controle de acesso quebrado | Verificação de propriedade do recurso em nível de Service (ex: obra pertence ao usuário autenticado) |
+| Configuração incorreta | Variáveis de ambiente para credenciais; `.env` fora do repositório |
+| Cross-Site Scripting (XSS) | Sanitização de entradas no frontend; React escapa conteúdo por padrão |
+| Componentes vulneráveis | Dependências monitoradas via `npm audit` integrado ao pipeline CI/CD |
+
+#### Validação de dados
+
+- Validação de entrada em todas as rotas da API com biblioteca **Zod**
+- Retorno de mensagens de erro genéricas ao cliente — detalhes internos não expostos
+- Limitação de tamanho de payload nas requisições (proteção contra ataques de sobrecarga)
+
+---
+
+### 6.2 Privacidade e LGPD
+
+O Build-Plan coleta e processa dados pessoais dos usuários. A seguir estão descritos os dados coletados, a finalidade de uso e os direitos garantidos ao titular.
+
+#### Dados coletados
+
+| Dado | Finalidade | Armazenamento |
+|---|---|---|
+| Nome completo | Identificação do usuário no sistema | Banco de dados — PostgreSQL |
+| Endereço de e-mail | Login e alertas de prazo | Banco de dados — PostgreSQL |
+| Senha (hash) | Autenticação segura | Banco de dados — hash bcrypt, nunca em texto puro |
+| Dados de obras e materiais | Funcionalidade central do sistema | Banco de dados — vinculados ao usuário |
+| Logs de rastreabilidade | Auditabilidade das operações | Banco de dados — com referência ao usuário executor |
+
+O sistema **não coleta** dados de localização, dados bancários, documentos de identificação ou qualquer dado sensível nos termos do Art. 5º da LGPD.
+
+#### Direitos do titular (Art. 18 da LGPD)
+
+O usuário poderá, a qualquer momento:
+
+- **Acessar** seus dados pessoais armazenados no sistema
+- **Corrigir** dados incompletos ou desatualizados via configurações de perfil
+- **Solicitar a exclusão** de sua conta — ao confirmar, todos os dados vinculados são removidos imediatamente do banco de dados
+- **Solicitar cancelamento** de alertas por e-mail via contato com o suporte
+
+#### Retenção de dados
+
+- Dados de obras e materiais são retidos enquanto a conta do usuário estiver ativa
+- Após exclusão da conta, todos os dados pessoais são removidos permanentemente
+- A política de backup é de responsabilidade do provedor de cloud utilizado no deploy
+
+#### Consentimento
+
+- O usuário consente com a política de privacidade no momento do cadastro
+
+
+---
+
+
+
+
+## 7. Planejamento do Projeto
+
+O projeto é desenvolvido individualmente, adotando **Kanban** como metodologia de gestão de tarefas, com acompanhamento via GitHub Projects. O desenvolvimento segue **TDD** e os marcos abaixo consideram uma dedicação realista de projeto de graduação — aproximadamente 10 a 15 horas semanais.
+
+| Marco | Descrição | Entregáveis | Prazo estimado |
+|---|---|---|---|
+| **M1** | Setup e fundação | Repositório configurado, Docker Compose funcional, banco de dados com migrations iniciais, pipeline CI/CD básico no GitHub Actions, wiki iniciada | Semana 1–2 |
+| **M2** | Autenticação e gestão de obras | Cadastro e login de usuário (JWT), CRUD de obras e etapas, testes unitários das rotas | Semana 3–4 |
+| **M3** | Catálogo de insumos | Cadastro manual de materiais, vínculo material-etapa, validações de negócio (RN01–RN03) e testes | Semana 5–6 |
+| **M4** | Importação do memorial | Entrada de texto do memorial, extração assistida de materiais, revisão e confirmação do catálogo | Semana 7–8 |
+| **M5** | Lista de compras e estimativas | Geração da lista por etapa, integração com SINAPI, exportação PDF/CSV | Semana 9–10 |
+| **M6** | Rastreabilidade e alertas | Ciclo de vida do material (Previsto → Recebido → Aplicado), log de auditoria, worker de alertas de prazo | Semana 11–12 |
+| **M7** | Ajustes, testes e entrega | Correção de bugs, cobertura de testes, documentação final na wiki, deploy em produção | Semana 13–14 |
+
+### Observações
+
+- Cada marco encerra com os testes escritos e passando — nenhum marco avança com testes quebrados
+- O M4 é o marco de maior risco técnico; caso necessite de ajuste de escopo, a extração pode ser simplificada para entrada manual pura sem impactar os demais módulos
+- A wiki do GitHub é atualizada ao final de cada marco
+
+----
+
+## 8. Referências
+
+### Documentação técnica
+
+- React — https://react.dev/
+- Node.js — https://nodejs.org/en/docs
+- Express.js — https://expressjs.com/
+- Prisma ORM — https://www.prisma.io/docs
+- PostgreSQL — https://www.postgresql.org/docs/
+- Docker — https://docs.docker.com/
+- GitHub Actions — https://docs.github.com/en/actions
+- Jest — https://jestjs.io/docs/getting-started
+- Zod — https://zod.dev/
+- JSON Web Token (JWT) — https://jwt.io/introduction
+- bcrypt — https://www.npmjs.com/package/bcrypt
+- Node-cron — https://www.npmjs.com/package/node-cron
+
+### Arquitetura e modelagem
+
+- C4 Model — Simon Brown — https://c4model.com/
+- OWASP Top 10 — https://owasp.org/www-project-top-ten/
+
+### Dados e referências de preço
+
+- SINAPI — Sistema Nacional de Pesquisa de Custos e Índices da Construção Civil — https://www.caixa.gov.br/poder-publico/modernizacao-gestao/sinapi/
+
+### Legislação
+
+- Lei Geral de Proteção de Dados Pessoais (LGPD) — Lei nº 13.709/2018 — https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm
+
+### Metodologias
+
+- Kanban — https://kanbanize.com/kanban-resources/getting-started/what-is-kanban
+- TDD (Test-Driven Development) — Kent Beck, *Test-Driven Development: By Example*, Addison-Wesley, 2002
+- SOLID e Clean Code — https://bit.ly/3tbawbD e https://bit.ly/3E7AaDx
+
+---
+
+## 9. Apêndices
+
+---
+
+### Apêndice A - Memorial Descritivo de Exemplo (Entrada do Sistema)
+
+**Nota do Apêndice:** *Este memorial descritivo é um exemplo fictício elaborado para fins de demonstração do Build-Plan. Sua estrutura foi baseada nos padrões estabelecidos pela ABNT NBR 12721 e em modelos reais de memoriais utilizados em habitações populares e de médio padrão no Brasil. O documento ilustra o tipo de entrada que o módulo de importação do sistema deve ser capaz de processar, incluindo especificações em texto corrido, listas de materiais com traços e dimensões, e tabelas de acabamentos por ambiente.*
+
+#### 1. Dados de Identificação do Empreendimento
+
+| Campo | Informação |
+| :--- | :--- |
+| **Empreendimento** | Residência Unifamiliar — Lote 14 |
+| **Endereço** | Rua das Orquídeas, 320 — Bairro Jardim Europa |
+| **Cidade / UF** | Joinville / SC |
+| **Proprietário** | Carlos Henrique Souza (CPF: 000.000.000-00) |
+| **Construtora Responsável** | Obras & Cia Ltda (CNPJ: 00.000.000/0001-00) |
+| **Padrão de Acabamento** | MÉDIO (NBR 12721) |
+| **Área construída** | 142,56 m² |
+| **Data do documento** | Maio de 2026 |
+
+#### 2. Infraestrutura e Estrutura
+
+**2.1 Fundação**
+A fundação será executada em radier armado, com as seguintes especificações:
+* **Tipo:** Radier em concreto armado
+* **Resistência do concreto:** fck = 20 MPa
+* **Espessura da laje:** 10 cm
+* **Armadura principal:** CA-50, Ø 10 mm, espaçamento de 20 cm (bidirecional)
+* **Armadura de temperatura:** CA-60, Ø 4,2 mm, malha Q-138
+* **Impermeabilização:** manta asfáltica de 4 mm aplicada sob a laje
+
+**2.2 Estrutura de Concreto Armado**
+Pilares, vigas e lajes serão executados em concreto armado conforme projeto estrutural:
+* **Resistência do concreto:** fck = 25 MPa
+* **Aço estrutural:** CA-50 e CA-60 conforme especificações de projeto
+* **Fôrmas:** tábuas tipo 3A 4X ou compensado laminado de alta resistência
+* **Laje de piso:** pré-moldada convencional com espessura de 12 cm (vigota 8 cm + capa 4 cm)
+
+#### 3. Vedações e Alvenaria
+As paredes serão erguidas em bloco cerâmico furado com as seguintes especificações:
+* **Bloco cerâmico:** 8 furos, dimensões nominais 9×14×19 cm
+* **Argamassa de assentamento:** cimento, cal e areia no traço 1:2:8
+* **Cinta de respaldo:** executada em bloco calha (10×20×20 cm) com armadura de 2 ferros Ø 6,3 mm
+* **Vergas e contravergas:** pré-moldadas em concreto armado de seção 10×10 cm, transpasse mínimo de 20 cm
+* **Revestimento interno:** chapisco + emboço desempenado + reboco liso, espessura total de 2,5 cm
+* **Revestimento externo:** chapisco + emboço paulistinha texturizado, espessura total de 2,0 cm
+
+#### 4. Cobertura
+* **Estrutura:** tesoura em madeira tratada (Pinus ou similar), com inclinação de 30%
+* **Telha:** cerâmica tipo colonial, cor terracota
+* **Impermeabilização:** manta asfáltica 4 mm nas calhas e rufos
+* **Calhas e rufos:** alumínio anodizado, largura de 20 cm
+* **Forro:** PVC branco, espessura 8 mm, instalado em todos os ambientes internos
+
+#### 5. Mapa de Esquadrias
+
+| Ambiente | Tipo | Material | Dimensões (m) | Observações |
+| :--- | :--- | :--- | :--- | :--- |
+| **Sala / Acesso** | Porta de entrada | Marco chapa 18 / Folha chapa 16 | 0,90 × 2,10 | Fechadura com cilindro duplo |
+| **Sala** | Janela de correr | Alumínio anodizado | 1,50 × 1,20 | Vidro liso 4 mm, com tela |
+| **Dormitórios** | Porta interna | Marco chapa 18 / Folha chapa 20 | 0,70 × 2,10 | Fechadura soprano popular |
+| **Dormitórios** | Janela de correr | Alumínio anodizado | 1,20 × 1,20 | Vidro liso 4 mm, com tela |
+| **Banheiro** | Porta interna | Marco chapa 18 / Folha chapa 20 | 0,60 × 2,10 | Fechadura livre/ocupado |
+| **Banheiro** | Janela basculante | Alumínio anodizado | 0,60 × 0,60 | Vidro fantasia 3 mm |
+| **Cozinha** | Janela de correr | Alumínio anodizado | 1,20 × 1,00 | Vidro liso 4 mm |
+| **Área de serviço**| Porta externa | Marco chapa 18 / Folha chapa 20 | 0,80 × 2,10 | Trinco de ferro polido |
+
+#### 6. Instalações
+
+**6.1 Instalações Hidrossanitárias**
+* **Tubulação de água fria:** PVC rígido soldável, Ø 25 mm (alimentação principal)
+* **Tubulação de esgoto:** PVC série normal, Ø 100 mm (esgoto) e Ø 50 mm (águas servidas)
+* **Reservatório:** caixa d'água em polietileno com capacidade de 1.000 L, instalada em suporte metálico
+* **Caixa de gordura:** pré-moldada sob calçada, com tampa removível
+* **Fossa e sumidouro:** executados em alvenaria de tijolo, com lastro de concreto de 5 cm
+
+**6.2 Instalações Elétricas**
+* **Padrão de entrada:** conforme normas da concessionária local (CELESC)
+* **Quadro de distribuição:** embutido, com disjuntores termomagnéticos e DR
+* **Fiação:** cabos de cobre flexível, seção mínima de 2,5 mm² para tomadas e 1,5 mm² para iluminação
+* **Eletrodutos:** PVC rígido embutido em alvenaria, Ø 20 mm e Ø 25 mm
+* **Tomadas e interruptores:** padrão NBR 14136 (padrão brasileiro), instalação a 1,10 m do piso
+
+#### 7. Memorial de Acabamentos (NBR 12721 — Quadro VII)
+
+| Dependência | Piso | Parede | Teto | Metais e Louças |
+| :--- | :--- | :--- | :--- | :--- |
+| **Sala de Estar** | Porcelanato retificado 60×60 cm — Eliane ou similar | Gesso liso + pintura acrílica fosca branca | Gesso plaquinha + pintura látex PVA | Tomadas e interruptores padrão NBR 14136 |
+| **Dormitório 1 (suíte)**| Piso laminado 8 mm AC4 — Eucafloor ou similar | Gesso liso + pintura acrílica fosca branca | Gesso plaquinha + pintura látex PVA | Pontos para cabeamento lógico e TV |
+| **Dormitório 2 e 3** | Piso laminado 8 mm AC4 — Eucafloor ou similar | Gesso liso + pintura acrílica fosca branca | Gesso plaquinha + pintura látex PVA | Pontos para TV |
+| **Banheiro Social** | Cerâmica antiderrapante 45×45 cm — Portobello ou similar | Cerâmica branca 30×60 cm até o teto — Portobello | Gesso acartonado resistente à umidade | Vaso c/ caixa acoplada, torneira bica alta — Deca ou similar |
+| **Suíte — Banheiro** | Cerâmica antiderrapante 45×45 cm — Portobello ou similar | Cerâmica branca 30×60 cm até o teto — Portobello | Gesso acartonado resistente à umidade | Vaso c/ caixa acoplada, chuveiro elétrico — Lorenzetti ou similar |
+| **Cozinha** | Porcelanato antiderrapante 60×60 cm — Eliane ou similar | Cerâmica 30×60 cm até h = 1,50 m, rejunte epóxi | Gesso resistente à umidade + pintura látex | Torneira de parede c/ arejador NBR 10281, tanque de louça — Deca |
+| **Área de Serviço** | Cerâmica antiderrapante 45×45 cm — Eliane ou similar | Pintura acrílica impermeável sobre reboco liso | Teto aparente c/ pintura acrílica texturizada | Tanque de louça branca c/ coluna — Deca ou similar |
+| **Garagem** | Concreto desempenado com endurecedor de superfície | Pintura acrílica externa texturizada | Teto aparente c/ pintura acrílica | — |
+
+#### 8. Disposições Finais e Limpeza
+Após a conclusão dos serviços, a construtora realizará a limpeza minuciosa de todas as dependências:
+* **Revestimentos:** todos os porcelanatos, cerâmicas e azulejos serão lavados e limpos, eliminando resíduos de argamassa e rejuntamento
+* **Vidros e esquadrias:** limpos e polidos, livres de respingos de tinta e massa corrida
+* **Louças e metais sanitários:** entregues com proteção removida, limpos e testados
+* **Sistemas hidráulicos:** todas as tubulações, calhas e sifões serão testados para verificar escoamento pleno
+
+*(Fim do Modelo)*
+
+---
+
+# 10. Parecer do Comitê de Avaliação
+
+(A ser preenchido pelos professores)
+
+**Avaliador 1:** __________________________  
+**Status:** [ ] Aprovado  [ ] Ajustar
+
+Observações:
+
+---
+
+**Avaliador 2:** __________________________  
+**Status:** [ ] Aprovado  [ ] Ajustar
+
+Observações:
+
+---
+
+**Avaliador 3:** __________________________  
+**Status:** [ ] Aprovado  [ ] Ajustar
+
+Observações:
