@@ -1,0 +1,198 @@
+// ============================================================
+// Build-Plan — Prisma Schema
+// Modelo de dados conforme Seção 5.2 do RFC
+// Caminho: /backend/prisma/schema.prisma
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum PapelUsuario {
+  GESTOR
+  PROPRIETARIO
+}
+
+/// Procedência do insumo no catálogo (Seção 5.2)
+enum OrigemMaterial {
+  MEMORIAL
+  MANUAL
+}
+
+/// Ciclo de vida do vínculo material-etapa (RF06 / RN01)
+/// Transição válida: PREVISTO -> RECEBIDO -> APLICADO
+enum StatusVinculo {
+  PREVISTO
+  RECEBIDO
+  APLICADO
+}
+
+// ============================================================
+// ENTIDADES
+// ============================================================
+
+/// Usuário do sistema (gestor de obra ou proprietário).
+model Usuario {
+  id        String       @id @default(uuid())
+  nome      String
+  email     String       @unique
+  senhaHash String       @map("senha_hash")
+  papel     PapelUsuario @default(GESTOR)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  obras Obra[]
+  logs  LogRastreabilidade[]
+
+  @@map("usuario")
+}
+
+/// Obra é a entidade agregadora: etapas, materiais e listas de compras.
+model Obra {
+  id        String   @id @default(uuid())
+  nome      String
+  descricao String?
+  endereco  String?
+  usuarioId String   @map("usuario_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  usuario        Usuario        @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  etapas         Etapa[]
+  materiais      Material[]
+  listasCompras  ListaCompras[]
+
+  @@index([usuarioId])
+  @@map("obra")
+}
+
+/// Fase/ambiente da obra (ex: fundação, alvenaria, acabamento).
+model Etapa {
+  id         String    @id @default(uuid())
+  nome       String
+  descricao  String?
+  ordem      Int?
+  dataInicio DateTime? @map("data_inicio")
+  dataFim    DateTime? @map("data_fim")
+  obraId     String    @map("obra_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  obra          Obra                   @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  vinculos      VinculoMaterialEtapa[]
+  listasCompras ListaCompras[]
+
+  @@index([obraId])
+  @@map("etapa")
+}
+
+/// Insumo do catálogo. Pertence diretamente à OBRA, não à etapa (Seção 5.2).
+model Material {
+  id           String         @id @default(uuid())
+  nome         String
+  especificacao String?       @map("especificacao")
+  unidade      String
+  quantidade   Decimal        @default(0) @db.Decimal(12, 3)
+  origem       OrigemMaterial @default(MANUAL)
+  codigoSinapi String?        @map("codigo_sinapi")
+  obraId       String         @map("obra_id")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  obra     Obra                   @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  vinculos VinculoMaterialEtapa[]
+
+  @@index([obraId])
+  @@index([codigoSinapi])
+  @@map("material")
+}
+
+/// Tabela associativa material <-> etapa (muitos-para-muitos).
+/// Um mesmo material aparece em múltiplas etapas com quantidades
+/// e status independentes. O campo `status` implementa a RN01.
+model VinculoMaterialEtapa {
+  id              String        @id @default(uuid())
+  materialId      String        @map("material_id")
+  etapaId         String        @map("etapa_id")
+  quantidade      Decimal       @default(0) @db.Decimal(12, 3)
+  status          StatusVinculo @default(PREVISTO)
+  local           String?
+  dataRecebimento DateTime?     @map("data_recebimento")
+  dataAplicacao   DateTime?     @map("data_aplicacao")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  material Material             @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  etapa    Etapa               @relation(fields: [etapaId], references: [id], onDelete: Cascade)
+  logs     LogRastreabilidade[]
+
+  @@unique([materialId, etapaId])
+  @@index([etapaId])
+  @@index([status])
+  @@map("vinculo_material_etapa")
+}
+
+/// Snapshot do plano de aquisições, gerado por etapa sob demanda do usuário.
+/// Não é recalculado automaticamente (Seção 5.2).
+model ListaCompras {
+  id       String   @id @default(uuid())
+  obraId   String   @map("obra_id")
+  etapaId  String?  @map("etapa_id")
+  geradaEm DateTime @default(now()) @map("gerada_em")
+
+  obra  Obra         @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  etapa Etapa?       @relation(fields: [etapaId], references: [id], onDelete: SetNull)
+  itens ItemCompra[]
+
+  @@index([obraId])
+  @@index([etapaId])
+  @@map("lista_compras")
+}
+
+/// Item da lista de compras. Congela o preço no momento da geração,
+/// preservando o histórico mesmo que o preço de referência mude (Seção 5.2).
+model ItemCompra {
+  id             String   @id @default(uuid())
+  listaComprasId String   @map("lista_compras_id")
+  materialId     String?  @map("material_id")
+  descricao      String
+  unidade        String
+  quantidade     Decimal  @default(0) @db.Decimal(12, 3)
+  precoUnitario  Decimal? @map("preco_unitario") @db.Decimal(12, 2)
+  precoTotal     Decimal? @map("preco_total") @db.Decimal(12, 2)
+  origemPreco    String?  @map("origem_preco") // "sinapi" | "manual"
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  listaCompras ListaCompras @relation(fields: [listaComprasId], references: [id], onDelete: Cascade)
+
+  @@index([listaComprasId])
+  @@map("item_compra")
+}
+
+/// Registro imutável de cada transição de status do vínculo (RNF04).
+/// Documenta quem, quando e o que mudou.
+model LogRastreabilidade {
+  id             String         @id @default(uuid())
+  vinculoId      String         @map("vinculo_id")
+  usuarioId      String         @map("usuario_id")
+  statusAnterior StatusVinculo? @map("status_anterior")
+  statusNovo     StatusVinculo  @map("status_novo")
+  detalhes       String?
+  criadoEm       DateTime       @default(now()) @map("criado_em")
+
+  vinculo VinculoMaterialEtapa @relation(fields: [vinculoId], references: [id], onDelete: Cascade)
+  usuario Usuario              @relation(fields: [usuarioId], references: [id])
+
+  @@index([vinculoId])
+  @@index([usuarioId])
+  @@map("log_rastreabilidade")
+}
