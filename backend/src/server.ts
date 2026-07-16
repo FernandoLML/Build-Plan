@@ -1,17 +1,16 @@
 // Caminho: /backend/src/server.ts
 // Ponto de entrada da API Build-Plan.
 
-import "dotenv/config";
 import express, { Application, Request, Response } from "express";
 import cors from "cors";
 import helmet from "helmet";
+import { env } from "./config/env.js";
 import { healthController } from "./controllers/health.controller.js";
+import { authRoutes } from "./routes/auth.routes.js";
 import { obraRoutes } from "./routes/obra.routes.js";
-import { devAuthMiddleware } from "./middlewares/dev-auth.middleware.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 
 const app: Application = express();
-const PORT = Number(process.env.PORT) || 3333;
 
 // Middlewares globais
 app.use(helmet());
@@ -24,16 +23,19 @@ app.get("/", (_req: Request, res: Response) => {
 });
 app.get("/api/health", (req, res) => healthController.getHealth(req, res));
 
-// Rotas autenticadas
-// ⚠️ devAuthMiddleware é TEMPORÁRIO — troque por authMiddleware (JWT) ao concluir a auth do M2.
-app.use("/api/obras", devAuthMiddleware, obraRoutes);
+// Autenticação (register/login públicos; me protegido internamente)
+app.use("/api/auth", authRoutes);
+
+// Rotas protegidas — o authMiddleware é aplicado dentro de obra.routes.ts,
+// populando req.userId a partir do token JWT.
+app.use("/api/obras", obraRoutes);
 
 // Tratamento de erro — SEMPRE por último, após todas as rotas.
 app.use(errorMiddleware);
 
-app.listen(PORT, () => {
-  console.log(`Build-Plan API rodando em http://localhost:${PORT}`);
-  console.log(`Health-check: http://localhost:${PORT}/api/health`);
+app.listen(env.PORT, () => {
+  console.log(`Build-Plan API rodando em http://localhost:${env.PORT}`);
+  console.log(`Health-check: http://localhost:${env.PORT}/api/health`);
 });
 
 export { app };
