@@ -1,5 +1,11 @@
 .env
 
+.env.test
+
+backend/.env
+
+backend/.env.test
+
 */.env
 
 postgres_data/

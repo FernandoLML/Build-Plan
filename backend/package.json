@@ -10,7 +10,11 @@
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "test:migrate": "dotenv -e .env.test -- prisma migrate deploy",
+    "pretest": "npm run test:migrate",
+    "test": "dotenv -e .env.test -- cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
+    "test:watch": "dotenv -e .env.test -- cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand --watch"
   },
   "keywords": [
     "build-plan",
@@ -27,17 +31,20 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "helmet": "^7.1.0",
-    "jsonwebtoken": "^9.0.3",
+    "jsonwebtoken": "^9.0.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@jest/globals": "^29.7.0",
     "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
-    "@types/jest": "^30.0.0",
-    "@types/jsonwebtoken": "^9.0.10",
+    "@types/jest": "^29.5.14",
+    "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^22.0.0",
-    "@types/supertest": "^7.2.1",
+    "@types/supertest": "^6.0.3",
+    "cross-env": "^7.0.3",
+    "dotenv-cli": "^7.4.4",
     "jest": "^30.4.2",
     "prisma": "^6.0.0",
     "supertest": "^7.2.2",
