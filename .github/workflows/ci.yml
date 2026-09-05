@@ -1,0 +1,85 @@
+
+name: CI
+
+# ------------------------------------------------------------------
+# Gatilhos: push e pull request nas branches main e feature-marco-m2
+# ------------------------------------------------------------------
+on:
+  push:
+    branches: [main, feature-marco-m2]
+  pull_request:
+    branches: [main, feature-marco-m2]
+
+jobs:
+  test:
+    name: Testes (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+
+    # O backend vive na subpasta /backend — todos os passos "run" partem dela.
+    defaults:
+      run:
+        working-directory: backend
+
+    strategy:
+      matrix:
+        node-version: [20.x] # LTS (troque para 22.x se preferir)
+
+    # ------------------------------------------------------------------
+    # Service Container: PostgreSQL 16 disponível em localhost:5432
+    # O healthcheck garante que o job só avança quando o banco aceita conexões.
+    # ------------------------------------------------------------------
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: buildplan
+          POSTGRES_PASSWORD: buildplan_test_password
+          POSTGRES_DB: buildplan_test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U buildplan -d buildplan_test_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    # ------------------------------------------------------------------
+    # Variáveis de ambiente do job — visíveis a todos os passos.
+    # DATABASE_URL aponta para o service container acima.
+    # ------------------------------------------------------------------
+    env:
+      DATABASE_URL: "postgresql://buildplan:buildplan_test_password@localhost:5432/buildplan_test_db?schema=test_buildplan"
+      JWT_SECRET: "segredo-de-teste-do-ci-nao-usar-em-producao-123456"
+      JWT_EXPIRES_IN: "1h"
+      NODE_ENV: "test"
+
+    steps:
+      # 1. Clona o repositório no runner
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      # 2. Instala o Node.js LTS e habilita o cache de dependências do npm.
+      #    cache-dependency-path aponta para o lockfile dentro de /backend.
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      # 3. Instalação limpa e reprodutível a partir do package-lock.json
+      - name: Instalar dependências
+        run: npm ci
+
+      # 4. Gera o Prisma Client tipado a partir do schema
+      - name: Gerar Prisma Client
+        run: npx prisma generate
+
+      # 5. Aplica as migrations no banco de teste (cria as tabelas)
+      - name: Rodar migrations do Prisma
+        run: npx prisma migrate deploy
+
+      # 6. Executa a suíte de testes de integração
+      #    (test:ci usa as variáveis do job, sem carregar .env.test)
+      - name: Executar testes
+        run: npm run test:ci
