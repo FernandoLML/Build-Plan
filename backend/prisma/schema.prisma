@@ -36,6 +36,14 @@ enum StatusVinculo {
   APLICADO
 }
 
+/// Estado de uma tarefa dentro de uma etapa da obra (M3).
+enum StatusTarefa {
+  PENDENTE
+  EM_ANDAMENTO
+  CONCLUIDA
+  BLOQUEADA
+}
+
 // ============================================================
 // ENTIDADES
 // ============================================================
@@ -80,7 +88,7 @@ model Etapa {
   id         String    @id @default(uuid())
   nome       String
   descricao  String?
-  ordem      Int?
+  ordem      Int       @default(0)
   dataInicio DateTime? @map("data_inicio")
   dataFim    DateTime? @map("data_fim")
   obraId     String    @map("obra_id")
@@ -90,9 +98,31 @@ model Etapa {
   obra          Obra                   @relation(fields: [obraId], references: [id], onDelete: Cascade)
   vinculos      VinculoMaterialEtapa[]
   listasCompras ListaCompras[]
+  tarefas       Tarefa[]
 
   @@index([obraId])
   @@map("etapa")
+}
+
+/// Tarefa executável dentro de uma etapa da obra (M3).
+model Tarefa {
+  id             String       @id @default(uuid())
+  titulo         String
+  descricao      String?
+  status         StatusTarefa @default(PENDENTE)
+  dataInicioPrev DateTime?    @map("data_inicio_prev")
+  dataFimPrev    DateTime?    @map("data_fim_prev")
+  dataConclusao  DateTime?    @map("data_conclusao")
+  ordem          Int          @default(0)
+  etapaId        String       @map("etapa_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  etapa Etapa @relation(fields: [etapaId], references: [id], onDelete: Cascade)
+
+  @@index([etapaId])
+  @@index([status])
+  @@map("tarefa")
 }
 
 /// Insumo do catálogo. Pertence diretamente à OBRA, não à etapa (Seção 5.2).

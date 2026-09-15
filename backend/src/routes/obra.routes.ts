@@ -6,6 +6,7 @@ import { Router } from "express";
 import { obraController } from "../controllers/obra.controller.js";
 import { asyncHandler } from "../middlewares/async-handler.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
+import { obraEtapaRoutes } from "./etapa.routes.js";
 
 const obraRoutes = Router();
 
@@ -17,5 +18,8 @@ obraRoutes.get("/:id", asyncHandler((req, res) => obraController.buscarPorId(req
 obraRoutes.post("/", asyncHandler((req, res) => obraController.criar(req, res)));
 obraRoutes.put("/:id", asyncHandler((req, res) => obraController.atualizar(req, res)));
 obraRoutes.delete("/:id", asyncHandler((req, res) => obraController.remover(req, res)));
+
+// Etapas aninhadas: /api/obras/:obraId/etapas (herda o authMiddleware acima).
+obraRoutes.use("/:obraId/etapas", obraEtapaRoutes);
 
 export { obraRoutes };
