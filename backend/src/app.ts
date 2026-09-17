@@ -8,6 +8,8 @@ import helmet from "helmet";
 import { healthController } from "./controllers/health.controller.js";
 import { authRoutes } from "./routes/auth.routes.js";
 import { obraRoutes } from "./routes/obra.routes.js";
+import { etapaRoutes } from "./routes/etapa.routes.js";
+import { tarefaRoutes } from "./routes/tarefa.routes.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 
 export function createApp(): Application {
@@ -27,8 +29,10 @@ export function createApp(): Application {
   // Autenticação
   app.use("/api/auth", authRoutes);
 
-  // Rotas protegidas (authMiddleware aplicado dentro de obra.routes.ts)
+  // Rotas protegidas (authMiddleware aplicado dentro de cada router)
   app.use("/api/obras", obraRoutes);
+  app.use("/api/etapas", etapaRoutes);
+  app.use("/api/tarefas", tarefaRoutes);
 
   // Tratamento de erro — SEMPRE por último.
   app.use(errorMiddleware);
