@@ -10,6 +10,8 @@ import { authRoutes } from "./routes/auth.routes.js";
 import { obraRoutes } from "./routes/obra.routes.js";
 import { etapaRoutes } from "./routes/etapa.routes.js";
 import { tarefaRoutes } from "./routes/tarefa.routes.js";
+import { materialRoutes } from "./routes/material.routes.js";
+import { vinculoRoutes } from "./routes/vinculo.routes.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 
 export function createApp(): Application {
@@ -33,6 +35,8 @@ export function createApp(): Application {
   app.use("/api/obras", obraRoutes);
   app.use("/api/etapas", etapaRoutes);
   app.use("/api/tarefas", tarefaRoutes);
+  app.use("/api/materiais", materialRoutes);
+  app.use("/api/vinculos", vinculoRoutes);
 
   // Tratamento de erro — SEMPRE por último.
   app.use(errorMiddleware);
