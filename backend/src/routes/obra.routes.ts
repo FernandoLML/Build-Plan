@@ -7,6 +7,7 @@ import { obraController } from "../controllers/obra.controller.js";
 import { asyncHandler } from "../middlewares/async-handler.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { obraEtapaRoutes } from "./etapa.routes.js";
+import { obraMaterialRoutes } from "./material.routes.js";
 
 const obraRoutes = Router();
 
@@ -21,5 +22,8 @@ obraRoutes.delete("/:id", asyncHandler((req, res) => obraController.remover(req,
 
 // Etapas aninhadas: /api/obras/:obraId/etapas (herda o authMiddleware acima).
 obraRoutes.use("/:obraId/etapas", obraEtapaRoutes);
+
+// Materiais aninhados: /api/obras/:obraId/materiais (herda o authMiddleware acima).
+obraRoutes.use("/:obraId/materiais", obraMaterialRoutes);
 
 export { obraRoutes };

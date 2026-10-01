@@ -8,6 +8,7 @@ import { etapaController } from "../controllers/etapa.controller.js";
 import { asyncHandler } from "../middlewares/async-handler.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { etapaTarefaRoutes } from "./tarefa.routes.js";
+import { etapaMaterialRoutes } from "./vinculo.routes.js";
 
 // mergeParams: true garante acesso ao :obraId da rota pai.
 // Este router é montado DENTRO de obra.routes.ts, que já aplica o authMiddleware.
@@ -25,5 +26,8 @@ etapaRoutes.delete("/:etapaId", asyncHandler((req, res) => etapaController.remov
 
 // Tarefas aninhadas: /api/etapas/:etapaId/tarefas
 etapaRoutes.use("/:etapaId/tarefas", etapaTarefaRoutes);
+
+// Vínculos material-etapa aninhados: /api/etapas/:etapaId/materiais
+etapaRoutes.use("/:etapaId/materiais", etapaMaterialRoutes);
 
 export { obraEtapaRoutes, etapaRoutes };
