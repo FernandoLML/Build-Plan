@@ -1,5 +1,5 @@
 // Caminho: /backend/src/tests/helpers/auth.helper.ts
-// Helpers de autenticação reutilizados pelas suítes de integração.
+// Helpers de autenticação/fixtures reutilizados pelas suítes de integração.
 // Registram usuários reais via API e devolvem tokens JWT válidos, permitindo
 // simular requisições de múltiplos usuários com o Supertest.
 
@@ -55,6 +55,20 @@ export async function criarEtapa(
     .post(`/api/obras/${obraId}/etapas`)
     .set("Authorization", `Bearer ${token}`)
     .send({ nome, ordem });
+
+  return res.body.id as string;
+}
+
+/** Cria um material no catálogo de uma obra e devolve o id do material. */
+export async function criarMaterial(
+  token: string,
+  obraId: string,
+  overrides: Record<string, unknown> = {},
+): Promise<string> {
+  const res = await request(app)
+    .post(`/api/obras/${obraId}/materiais`)
+    .set("Authorization", `Bearer ${token}`)
+    .send({ nome: "Cimento CP-II", unidade: "saco", quantidade: 10, ...overrides });
 
   return res.body.id as string;
 }
