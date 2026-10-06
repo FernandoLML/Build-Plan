@@ -8,6 +8,7 @@ import { asyncHandler } from "../middlewares/async-handler.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { obraEtapaRoutes } from "./etapa.routes.js";
 import { obraMaterialRoutes } from "./material.routes.js";
+import { obraListaRoutes } from "./lista-compras.routes.js";
 
 const obraRoutes = Router();
 
@@ -25,5 +26,8 @@ obraRoutes.use("/:obraId/etapas", obraEtapaRoutes);
 
 // Materiais aninhados: /api/obras/:obraId/materiais (herda o authMiddleware acima).
 obraRoutes.use("/:obraId/materiais", obraMaterialRoutes);
+
+// Listas de compras aninhadas: /api/obras/:obraId/listas-compras (herda o authMiddleware).
+obraRoutes.use("/:obraId/listas-compras", obraListaRoutes);
 
 export { obraRoutes };
