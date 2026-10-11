@@ -23,6 +23,8 @@ export function createApp(): Application {
   app.use(helmet());
   app.use(cors());
   app.use(express.json({ limit: "1mb" }));
+  // UC01: aceita o Memorial Descritivo colado como texto cru (CSV).
+  app.use(express.text({ type: ["text/csv", "text/plain"], limit: "2mb" }));
 
   // Rotas públicas
   app.get("/", (_req: Request, res: Response) => {
