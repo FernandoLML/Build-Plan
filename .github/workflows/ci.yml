@@ -6,9 +6,13 @@ name: CI
 # ------------------------------------------------------------------
 on:
   push:
-    branches: [main, feature-marco-m2]
+    branches:
+      - main
+      - "feature-**"      
   pull_request:
-    branches: [main, feature-marco-m2]
+    branches:
+      - main
+      - "feature-**"
 
 jobs:
   test:
