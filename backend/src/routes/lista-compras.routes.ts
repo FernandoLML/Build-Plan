@@ -1,11 +1,12 @@
 // Caminho: /backend/src/routes/lista-compras.routes.ts
-// Rotas de Lista de Compras (M4 — Fase 2). Três exportações:
+// Rotas de Lista de Compras (M4 Fase 2) + exportação CSV (M5 Workstream B).
 //  - etapaListaRoutes: geração aninhada em /api/etapas/:etapaId/lista-compras (mergeParams).
 //  - obraListaRoutes: listagem aninhada em /api/obras/:obraId/listas-compras (mergeParams).
-//  - listaRoutes: recursos individuais em /api/listas-compras/:id (+ itens aninhados).
+//  - listaRoutes: recursos individuais em /api/listas-compras/:id (+ itens aninhados + export).
 
 import { Router } from "express";
 import { listaComprasController } from "../controllers/lista-compras.controller.js";
+import { exportController } from "../controllers/export.controller.js";
 import { asyncHandler } from "../middlewares/async-handler.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { listaItemRoutes } from "./item-compra.routes.js";
@@ -24,6 +25,9 @@ listaRoutes.use(authMiddleware);
 
 listaRoutes.get("/:id", asyncHandler((req, res) => listaComprasController.buscar(req, res)));
 listaRoutes.delete("/:id", asyncHandler((req, res) => listaComprasController.remover(req, res)));
+
+// Exportação CSV: /api/listas-compras/:id/export.csv
+listaRoutes.get("/:id/export.csv", asyncHandler((req, res) => exportController.listaComprasCsv(req, res)));
 
 // Itens aninhados: /api/listas-compras/:listaId/itens
 listaRoutes.use("/:listaId/itens", listaItemRoutes);
