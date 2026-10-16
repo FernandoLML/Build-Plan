@@ -5,6 +5,7 @@
 
 import { Router } from "express";
 import { vinculoMaterialController } from "../controllers/vinculo-material.controller.js";
+import { logController } from "../controllers/log.controller.js";
 import { asyncHandler } from "../middlewares/async-handler.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 
@@ -21,5 +22,8 @@ vinculoRoutes.use(authMiddleware);
 
 vinculoRoutes.patch("/:id/status", asyncHandler((req, res) => vinculoMaterialController.atualizarStatus(req, res)));
 vinculoRoutes.delete("/:id", asyncHandler((req, res) => vinculoMaterialController.remover(req, res)));
+
+// Timeline de rastreabilidade do vínculo (Tela 6): /api/vinculos/:id/logs
+vinculoRoutes.get("/:id/logs", asyncHandler((req, res) => logController.porVinculo(req, res)));
 
 export { etapaMaterialRoutes, vinculoRoutes };
