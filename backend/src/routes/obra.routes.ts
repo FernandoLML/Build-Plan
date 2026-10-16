@@ -11,6 +11,7 @@ import { obraMaterialRoutes } from "./material.routes.js";
 import { obraListaRoutes } from "./lista-compras.routes.js";
 import { obraMemorialRoutes } from "./memorial.routes.js";
 import { obraDashboardRoutes } from "./dashboard.routes.js";
+import { obraLogRoutes } from "./log.routes.js";
 
 const obraRoutes = Router();
 
@@ -37,5 +38,8 @@ obraRoutes.use("/:obraId/listas-compras", obraListaRoutes);
 
 // Dashboard da obra (M5): /api/obras/:obraId/dashboard (herda o authMiddleware).
 obraRoutes.use("/:obraId/dashboard", obraDashboardRoutes);
+
+// Logs de rastreabilidade da obra (Tela 6): /api/obras/:obraId/logs (herda o authMiddleware).
+obraRoutes.use("/:obraId/logs", obraLogRoutes);
 
 export { obraRoutes };
