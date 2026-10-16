@@ -10,6 +10,7 @@ import { obraEtapaRoutes } from "./etapa.routes.js";
 import { obraMaterialRoutes } from "./material.routes.js";
 import { obraListaRoutes } from "./lista-compras.routes.js";
 import { obraMemorialRoutes } from "./memorial.routes.js";
+import { obraDashboardRoutes } from "./dashboard.routes.js";
 
 const obraRoutes = Router();
 
@@ -26,8 +27,6 @@ obraRoutes.delete("/:id", asyncHandler((req, res) => obraController.remover(req,
 obraRoutes.use("/:obraId/etapas", obraEtapaRoutes);
 
 // UC01 Memorial: /api/obras/:obraId/materiais/preview-memorial e /importar-memorial.
-// Montado ANTES do catálogo para deixar os subpaths explícitos (ambos convivem
-// no mesmo prefixo; o catálogo só responde a "/" e o memorial aos subpaths).
 obraRoutes.use("/:obraId/materiais", obraMemorialRoutes);
 
 // Materiais aninhados: /api/obras/:obraId/materiais (herda o authMiddleware acima).
@@ -35,5 +34,8 @@ obraRoutes.use("/:obraId/materiais", obraMaterialRoutes);
 
 // Listas de compras aninhadas: /api/obras/:obraId/listas-compras (herda o authMiddleware).
 obraRoutes.use("/:obraId/listas-compras", obraListaRoutes);
+
+// Dashboard da obra (M5): /api/obras/:obraId/dashboard (herda o authMiddleware).
+obraRoutes.use("/:obraId/dashboard", obraDashboardRoutes);
 
 export { obraRoutes };
