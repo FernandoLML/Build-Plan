@@ -8,6 +8,7 @@ import { LoginPage } from "@/pages/auth/LoginPage";
 import { RegisterPage } from "@/pages/auth/RegisterPage";
 import { ObrasPage } from "@/pages/obras/ObrasPage";
 import { DashboardPage } from "@/pages/dashboard/DashboardPage";
+import { MemorialPage } from "@/pages/memorial/MemorialPage";
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route path="/obras" element={<ObrasPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/memorial" element={<MemorialPage />} />
         </Route>
       </Route>
 

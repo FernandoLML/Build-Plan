@@ -20,23 +20,21 @@ export function DashboardPage() {
   // Nenhuma obra selecionada.
   if (!obraAtivaId) {
     return (
-      <div className="mx-auto max-w-5xl p-6">
-        <div className="rounded-lg border border-dashed border-slate-300 p-12 text-center">
+      <div className="rounded-lg border border-dashed border-slate-300 p-12 text-center">
           <LayoutDashboard className="mx-auto h-10 w-10 text-slate-400" />
           <p className="mt-3 font-medium text-slate-700">Nenhuma obra selecionada</p>
           <p className="text-sm text-slate-500">
             Selecione uma obra para visualizar os indicadores operacionais.
           </p>
-          <Button asChild className="mt-4">
-            <Link to="/obras">Ir para Obras</Link>
-          </Button>
-        </div>
+        <Button asChild className="mt-4">
+          <Link to="/obras">Ir para Obras</Link>
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
+    <div className="space-y-6">
       <header>
         <h1 className="text-2xl font-semibold">Dashboard</h1>
         <p className="text-sm text-slate-500">Visão operacional de suprimentos da obra ativa.</p>

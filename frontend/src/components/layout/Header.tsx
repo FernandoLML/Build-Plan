@@ -10,6 +10,12 @@ import { useObras } from "@/hooks/useObras";
 
 const linkBase = "text-sm font-medium transition-colors hover:text-slate-900";
 
+const navItens = [
+  { to: "/obras", label: "Obras" },
+  { to: "/dashboard", label: "Dashboard" },
+  { to: "/memorial", label: "Memorial" },
+];
+
 export function Header() {
   const { usuario, logout } = useAuth();
   const { obraAtivaId } = useObraAtiva();
@@ -19,7 +25,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-white/90 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Logo + navegação */}
         <div className="flex items-center gap-6">
           <Link to="/obras" className="flex items-center gap-2 font-semibold">
@@ -27,22 +33,17 @@ export function Header() {
             Build-Plan
           </Link>
           <nav className="flex items-center gap-4">
-            <NavLink
-              to="/obras"
-              className={({ isActive }) =>
-                `${linkBase} ${isActive ? "text-slate-900" : "text-slate-500"}`
-              }
-            >
-              Obras
-            </NavLink>
-            <NavLink
-              to="/dashboard"
-              className={({ isActive }) =>
-                `${linkBase} ${isActive ? "text-slate-900" : "text-slate-500"}`
-              }
-            >
-              Dashboard
-            </NavLink>
+            {navItens.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  `${linkBase} ${isActive ? "text-slate-900" : "text-slate-500"}`
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
           </nav>
         </div>
 
