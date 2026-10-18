@@ -13,3 +13,15 @@ export function formatarData(iso: string | null | undefined): string {
   const data = new Date(iso);
   return Number.isNaN(data.getTime()) ? "—" : dateFormatter.format(data);
 }
+
+const currencyFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
+
+/** Formata um valor (string decimal vinda da API, ou número) como BRL. */
+export function formatarMoeda(valor: string | number | null | undefined): string {
+  if (valor === null || valor === undefined) return "—";
+  const numero = typeof valor === "string" ? Number(valor) : valor;
+  return Number.isNaN(numero) ? "—" : currencyFormatter.format(numero);
+}

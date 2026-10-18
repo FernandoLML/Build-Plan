@@ -1,9 +1,9 @@
 // Caminho: /frontend/src/App.tsx
-// Rotas: públicas (/login, /register) e privadas (via ProtectedRoute).
-// A Tela 1 (/obras) é a home pós-login.
+// Rotas: públicas (/login, /register) e privadas (ProtectedRoute + AppLayout).
 
 import { Routes, Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { LoginPage } from "@/pages/auth/LoginPage";
 import { RegisterPage } from "@/pages/auth/RegisterPage";
 import { ObrasPage } from "@/pages/obras/ObrasPage";
@@ -16,10 +16,12 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
 
-      {/* Privadas */}
+      {/* Privadas: exigem sessão (ProtectedRoute) e usam o shell (AppLayout) */}
       <Route element={<ProtectedRoute />}>
-        <Route path="/obras" element={<ObrasPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route element={<AppLayout />}>
+          <Route path="/obras" element={<ObrasPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+        </Route>
       </Route>
 
       {/* Redirecionamentos — /obras é a home pós-login */}
