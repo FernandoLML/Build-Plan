@@ -13,6 +13,8 @@ const linkBase = "text-sm font-medium transition-colors hover:text-slate-900";
 const navItens = [
   { to: "/obras", label: "Obras" },
   { to: "/dashboard", label: "Dashboard" },
+  { to: "/materiais", label: "Materiais" },
+  { to: "/compras", label: "Compras" },
   { to: "/memorial", label: "Memorial" },
 ];
 
