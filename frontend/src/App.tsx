@@ -1,10 +1,12 @@
 // Caminho: /frontend/src/App.tsx
-// Definição das rotas: públicas (/login, /register) e privadas (via ProtectedRoute).
+// Rotas: públicas (/login, /register) e privadas (via ProtectedRoute).
+// A Tela 1 (/obras) é a home pós-login.
 
 import { Routes, Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { LoginPage } from "@/pages/auth/LoginPage";
 import { RegisterPage } from "@/pages/auth/RegisterPage";
+import { ObrasPage } from "@/pages/obras/ObrasPage";
 import { DashboardPage } from "@/pages/dashboard/DashboardPage";
 
 export default function App() {
@@ -16,12 +18,13 @@ export default function App() {
 
       {/* Privadas */}
       <Route element={<ProtectedRoute />}>
+        <Route path="/obras" element={<ObrasPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
       </Route>
 
-      {/* Redirecionamentos */}
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      {/* Redirecionamentos — /obras é a home pós-login */}
+      <Route path="/" element={<Navigate to="/obras" replace />} />
+      <Route path="*" element={<Navigate to="/obras" replace />} />
     </Routes>
   );
 }
