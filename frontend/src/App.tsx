@@ -11,6 +11,7 @@ import { DashboardPage } from "@/pages/dashboard/DashboardPage";
 import { MemorialPage } from "@/pages/memorial/MemorialPage";
 import { MateriaisPage } from "@/pages/materiais/MateriaisPage";
 import { ComprasPage } from "@/pages/compras/ComprasPage";
+import { RastreabilidadePage } from "@/pages/rastreabilidade/RastreabilidadePage";
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/materiais" element={<MateriaisPage />} />
           <Route path="/compras" element={<ComprasPage />} />
+          <Route path="/rastreabilidade" element={<RastreabilidadePage />} />
           <Route path="/memorial" element={<MemorialPage />} />
         </Route>
       </Route>

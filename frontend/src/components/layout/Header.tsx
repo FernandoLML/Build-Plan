@@ -15,6 +15,7 @@ const navItens = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/materiais", label: "Materiais" },
   { to: "/compras", label: "Compras" },
+  { to: "/rastreabilidade", label: "Rastreabilidade" },
   { to: "/memorial", label: "Memorial" },
 ];
 
