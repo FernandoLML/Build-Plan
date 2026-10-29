@@ -1,7 +1,7 @@
 // Caminho: /frontend/tailwind.config.ts
-// Config canônico do shadcn/ui para Tailwind v3 (variáveis HSL).
-// Sem plugins externos para evitar "module not found" — animações do shadcn
-// são opcionais (adicione `tailwindcss-animate` depois, se quiser os efeitos).
+// Obsidian Precision — tema dark (shadcn em HSL) + tokens do DESIGN.md.
+// Cores slate/indigo/emerald/amber/sky/rose já são padrão do Tailwind e batem
+// com os valores do design (slate-950 #020617, slate-900 #0f172a, indigo-600 #4f46e5…).
 
 import type { Config } from "tailwindcss";
 
@@ -50,10 +50,27 @@ export default {
           foreground: "hsl(var(--card-foreground))",
         },
       },
+      fontFamily: {
+        // Inter para corpo/tabelas; Geist para títulos e métricas (KPIs).
+        sans: ["Inter", "system-ui", "sans-serif"],
+        display: ["Geist", "Inter", "system-ui", "sans-serif"],
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      spacing: {
+        // Tokens de espaçamento do DESIGN.md (cadência base-4).
+        gutter: "1.25rem",
+        "gutter-mobile": "0.75rem",
+        margin: "2rem",
+        "margin-mobile": "1rem",
+        "space-xs": "0.25rem",
+        "space-sm": "0.5rem",
+        "space-md": "1rem",
+        "space-lg": "1.5rem",
+        "space-xl": "2.5rem",
       },
     },
   },

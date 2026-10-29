@@ -1,10 +1,15 @@
 // Caminho: /frontend/src/hooks/useMateriais.ts
 // Hooks TanStack Query da Tela 4: materiais, etapas (p/ seleção) e vínculos.
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { etapasApi, materiaisApi, vinculosApi } from "@/api/materiais";
 import type { CreateEtapaPayload } from "@/types/etapa";
-import type { CreateVinculoPayload, UpdateMaterialPayload } from "@/types/material";
+import type {
+  CreateMaterialPayload,
+  CreateVinculoPayload,
+  UpdateMaterialPayload,
+  VinculoMaterialEtapa,
+} from "@/types/material";
 
 // ---- Materiais ----
 export function useMateriais(obraId: string | null) {
@@ -12,6 +17,17 @@ export function useMateriais(obraId: string | null) {
     queryKey: ["materiais", obraId],
     queryFn: () => materiaisApi.listar(obraId as string),
     enabled: !!obraId,
+  });
+}
+
+export function useCriarMaterial(obraId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateMaterialPayload) => materiaisApi.criar(obraId as string, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["materiais", obraId] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard", obraId] });
+    },
   });
 }
 
@@ -65,6 +81,29 @@ export function useVinculosPorEtapa(etapaId: string | null) {
     queryFn: () => vinculosApi.listarPorEtapa(etapaId as string),
     enabled: !!etapaId,
   });
+}
+
+/**
+ * Agrega os vínculos de TODAS as etapas da obra, reaproveitando o mesmo endpoint
+ * e as mesmas chaves de cache (['vinculos', etapaId]) via useQueries. Somente leitura.
+ */
+export function useVinculosDaObra(obraId: string | null): {
+  vinculos: VinculoMaterialEtapa[];
+  isLoading: boolean;
+} {
+  const { data: etapas } = useEtapas(obraId);
+  const results = useQueries({
+    queries: (etapas ?? []).map((etapa) => ({
+      queryKey: ["vinculos", etapa.id],
+      queryFn: () => vinculosApi.listarPorEtapa(etapa.id),
+      enabled: !!obraId,
+    })),
+  });
+  const vinculos = results.flatMap(
+    (r) => (r.data as VinculoMaterialEtapa[] | undefined) ?? [],
+  );
+  const isLoading = results.some((r) => r.isLoading);
+  return { vinculos, isLoading };
 }
 
 export function useCriarVinculo(obraId: string | null) {

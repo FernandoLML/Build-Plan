@@ -48,14 +48,16 @@ export function MemorialDropzone({ onArquivoLido, onErro, disabled }: MemorialDr
       }}
       onClick={() => !disabled && inputRef.current?.click()}
       className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-10 text-center transition-colors ${
-        arrastando ? "border-emerald-500 bg-emerald-50" : "border-slate-300 hover:border-slate-400"
+        arrastando
+          ? "border-indigo-500 bg-indigo-500/10"
+          : "border-slate-700 hover:border-slate-600 hover:bg-slate-800/40"
       } ${disabled ? "pointer-events-none opacity-60" : ""}`}
     >
-      <UploadCloud className="h-8 w-8 text-slate-400" />
-      <p className="text-sm font-medium text-slate-700">
+      <UploadCloud className="h-8 w-8 text-slate-500" />
+      <p className="text-sm font-medium text-slate-200">
         Arraste o arquivo do memorial (CSV) aqui ou clique para selecionar
       </p>
-      <p className="text-xs text-slate-400">Formatos aceitos: .csv ou .txt (até 2MB)</p>
+      <p className="text-xs text-slate-500">Formatos aceitos: .csv ou .txt (até 2MB)</p>
       <input
         ref={inputRef}
         type="file"

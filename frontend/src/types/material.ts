@@ -49,6 +49,15 @@ export interface UpdateMaterialPayload {
   codigoSinapi?: string;
 }
 
+export interface CreateMaterialPayload {
+  nome: string;
+  especificacao?: string;
+  unidade: string;
+  quantidade?: number;
+  origem?: OrigemMaterial;
+  codigoSinapi?: string;
+}
+
 // ---- Formulário de vínculo material-etapa ----
 export const vinculoFormSchema = z.object({
   etapaId: z.string().uuid("Selecione uma etapa."),

@@ -5,6 +5,7 @@
 import { api } from "@/lib/api";
 import type { CreateEtapaPayload, Etapa, EtapaComProgresso } from "@/types/etapa";
 import type {
+  CreateMaterialPayload,
   CreateVinculoPayload,
   Material,
   UpdateMaterialPayload,
@@ -15,6 +16,12 @@ export const materiaisApi = {
   // GET /api/obras/:obraId/materiais
   async listar(obraId: string): Promise<Material[]> {
     const { data } = await api.get<Material[]>(`/obras/${obraId}/materiais`);
+    return data;
+  },
+
+  // POST /api/obras/:obraId/materiais
+  async criar(obraId: string, payload: CreateMaterialPayload): Promise<Material> {
+    const { data } = await api.post<Material>(`/obras/${obraId}/materiais`, payload);
     return data;
   },
 
