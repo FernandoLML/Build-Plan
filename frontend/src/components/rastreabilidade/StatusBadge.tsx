@@ -5,9 +5,9 @@ import type { StatusVinculo } from "@/types/material";
 import { STATUS_LABEL } from "@/types/rastreabilidade";
 
 const CLASSES: Record<StatusVinculo, string> = {
-  PREVISTO: "bg-slate-100 text-slate-700",
-  RECEBIDO: "bg-sky-100 text-sky-700",
-  APLICADO: "bg-emerald-100 text-emerald-700",
+  PREVISTO: "bg-slate-800 text-slate-300",
+  RECEBIDO: "bg-sky-500/10 text-sky-400",
+  APLICADO: "bg-emerald-500/10 text-emerald-400",
 };
 
 export function StatusBadge({ status }: { status: StatusVinculo }) {

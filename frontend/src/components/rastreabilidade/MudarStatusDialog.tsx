@@ -81,14 +81,14 @@ export function MudarStatusDialog({ open, onOpenChange, vinculo, etapaId, obraId
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {erro && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>}
+          {erro && <p className="rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-400">{erro}</p>}
 
           <div className="space-y-1">
             <Label htmlFor="detalhes">Observação (opcional)</Label>
             <textarea
               id="detalhes"
               rows={3}
-              className="w-full rounded-md border border-slate-300 p-2 text-sm outline-none focus:border-slate-500"
+              className="w-full rounded-md border border-slate-800 bg-slate-950 p-2 text-sm text-slate-100 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40"
               placeholder="Ex.: Material recebido no canteiro em bom estado."
               {...register("detalhes")}
             />
