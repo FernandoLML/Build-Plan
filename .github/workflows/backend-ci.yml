@@ -1,0 +1,89 @@
+# Caminho: /.github/workflows/backend-ci.yml
+# CI do backend (Build-Plan) — Marco M7.
+# Sobe um PostgreSQL de serviço, gera o Prisma Client, aplica as migrações em um
+# banco de teste, verifica a tipagem e roda a suíte Jest/Supertest.
+
+name: Backend CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - "feature-*"
+      - "feature/**"
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    branches:
+      - main
+      - develop
+      - "feature-*"
+      - "feature/**"
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    name: Test & Build (backend)
+    runs-on: ubuntu-latest
+
+    # Todos os passos `run` executam dentro de backend/.
+    defaults:
+      run:
+        working-directory: backend
+
+    # Variáveis de ambiente para os testes de integração.
+    env:
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/buildplan_test?schema=public"
+      NODE_ENV: test
+      JWT_SECRET: "ci-test-secret-nao-usar-em-producao"
+
+    # PostgreSQL como container de serviço (banco real para os testes de integração).
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: buildplan_test
+        ports:
+          - 5432:5432
+        # Aguarda o Postgres ficar pronto antes de iniciar os passos.
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalar dependências (clean install)
+        run: npm ci
+
+      - name: Gerar o Prisma Client
+        run: npx prisma generate
+
+      - name: Aplicar migrações no banco de teste
+        run: npx prisma migrate deploy
+
+      - name: Verificação estrita de tipagem
+        run: npx tsc --noEmit
+
+      - name: Executar a suíte de testes (Jest/Supertest)
+        run: npm test
