@@ -14,6 +14,11 @@ export default defineConfig({
   server: {
     port: 5173,
   },
+  // Usa o minificador de CSS do esbuild (mais tolerante que o lightningcss) para
+  // o bundle de produção, evitando falsos positivos de parse durante o `vite build`.
+  build: {
+    cssMinify: "esbuild",
+  },
   test: {
     globals: true,
     environment: "jsdom",
