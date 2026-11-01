@@ -85,5 +85,7 @@ jobs:
       - name: Verificação estrita de tipagem
         run: npx tsc --noEmit
 
+      # test:ci usa as variáveis do job (sem .env.test nem pretest); as migrações
+      # já foram aplicadas no passo anterior.
       - name: Executar a suíte de testes (Jest/Supertest)
-        run: npm test
+        run: npm run test:ci
