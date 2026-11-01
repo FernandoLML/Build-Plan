@@ -15,7 +15,8 @@
     "pretest": "npm run test:migrate",
     "test": "dotenv -e .env.test -- cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
     "test:watch": "dotenv -e .env.test -- cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand --watch",
-    "test:ci": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand --ci"
+    "test:ci": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand --ci",
+    "sinapi:import": "tsx src/scripts/importSinapi.ts"
   },
   "keywords": [
     "build-plan",
@@ -51,7 +52,7 @@
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.11",
     "ts-node": "^10.9.2",
-    "tsx": "^4.19.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.6.0"
   }
 }

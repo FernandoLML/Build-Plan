@@ -1,0 +1,51 @@
+# Caminho: /.github/workflows/sinapi-import.yml
+# Atualização mensal (batch) do catálogo SINAPI — elimina a carga manual.
+# Roda o importador idempotente contra o banco de produção usando secrets.
+# Também pode ser disparado manualmente (workflow_dispatch).
+
+name: SINAPI Import
+
+on:
+  schedule:
+    # 06:00 UTC no dia 5 de cada mês (margem para a Caixa publicar a referência).
+    - cron: "0 6 5 * *"
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Fonte alternativa (caminho ou URL http/https). Vazio = amostra versionada."
+        required: false
+        default: ""
+
+concurrency:
+  group: sinapi-import
+  cancel-in-progress: false
+
+jobs:
+  import:
+    name: Importar catálogo SINAPI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SINAPI_SOURCE: ${{ github.event.inputs.source }}
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalar dependências (clean install)
+        run: npm ci
+
+      - name: Gerar o Prisma Client
+        run: npx prisma generate
+
+      - name: Importar catálogo (upsert idempotente)
+        run: npm run sinapi:import

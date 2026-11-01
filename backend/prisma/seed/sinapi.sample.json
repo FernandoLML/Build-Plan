@@ -1,0 +1,12 @@
+[
+  { "codigo": "00001379", "descricao": "CIMENTO PORTLAND COMPOSTO CP II-32", "unidade": "KG", "precoMediano": 0.74, "uf": "SC", "mesReferencia": 8, "anoReferencia": 2025, "regime": "NAO_DESONERADO", "tipo": "INSUMO" },
+  { "codigo": "00000370", "descricao": "AREIA MEDIA - POSTO JAZIDA/FORNECEDOR (SEM FRETE)", "unidade": "M3", "precoMediano": 92.50, "uf": "SC", "mesReferencia": 8, "anoReferencia": 2025, "regime": "NAO_DESONERADO", "tipo": "INSUMO" },
+  { "codigo": "00004720", "descricao": "PEDRA BRITADA N. 1 (9,5 A 19 MM) POSTO PEDREIRA/FORNECEDOR", "unidade": "M3", "precoMediano": 118.00, "uf": "SC", "mesReferencia": 8, "anoReferencia": 2025, "regime": "NAO_DESONERADO", "tipo": "INSUMO" },
+  { "codigo": "00000034", "descricao": "ACO CA-50, 10,0 MM, VERGALHAO", "unidade": "KG", "precoMediano": 7.85, "uf": "SC", "mesReferencia": 8, "anoReferencia": 2025, "regime": "NAO_DESONERADO", "tipo": "INSUMO" },
+  { "codigo": "00007258", "descricao": "TIJOLO CERAMICO FURADO 9 X 14 X 19 CM", "unidade": "UN", "precoMediano": 0.98, "uf": "SC", "mesReferencia": 8, "anoReferencia": 2025, "regime": "NAO_DESONERADO", "tipo": "INSUMO" },
+  { "codigo": "00000367", "descricao": "ARGAMASSA COLANTE TIPO AC-I", "unidade": "KG", "precoMediano": 1.35, "uf": "SC", "mesReferencia": 8, "anoReferencia": 2025, "regime": "NAO_DESONERADO", "tipo": "INSUMO" },
+  { "codigo": "00000038", "descricao": "ACO CA-60, 5,0 MM, FIO MAQUINA", "unidade": "KG", "precoMediano": 8.40, "uf": "SC", "mesReferencia": 8, "anoReferencia": 2025, "regime": "NAO_DESONERADO", "tipo": "INSUMO" },
+  { "codigo": "00011817", "descricao": "TELA DE ACO SOLDADA NERVURADA Q-138", "unidade": "M2", "precoMediano": 22.10, "uf": "SC", "mesReferencia": 8, "anoReferencia": 2025, "regime": "NAO_DESONERADO", "tipo": "INSUMO" },
+  { "codigo": "00000142", "descricao": "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 39 CM", "unidade": "UN", "precoMediano": 3.95, "uf": "SC", "mesReferencia": 8, "anoReferencia": 2025, "regime": "NAO_DESONERADO", "tipo": "INSUMO" },
+  { "codigo": "00043054", "descricao": "CONCRETO USINADO BOMBEAVEL FCK=25MPA", "unidade": "M3", "precoMediano": 465.00, "uf": "SC", "mesReferencia": 8, "anoReferencia": 2025, "regime": "NAO_DESONERADO", "tipo": "INSUMO" }
+]
