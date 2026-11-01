@@ -14,6 +14,7 @@ import { materialRoutes } from "./routes/material.routes.js";
 import { vinculoRoutes } from "./routes/vinculo.routes.js";
 import { listaRoutes } from "./routes/lista-compras.routes.js";
 import { itemRoutes } from "./routes/item-compra.routes.js";
+import { sinapiRouter } from "./modules/sinapi/sinapi.routes.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 
 export function createApp(): Application {
@@ -45,6 +46,7 @@ export function createApp(): Application {
   app.use("/api/vinculos", vinculoRoutes);
   app.use("/api/listas-compras", listaRoutes);
   app.use("/api/itens-compra", itemRoutes);
+  app.use("/api/sinapi", sinapiRouter);
 
   // Tratamento de erro — SEMPRE por último, após todas as rotas.
   app.use(errorMiddleware);

@@ -226,3 +226,37 @@ model LogRastreabilidade {
   @@index([usuarioId])
   @@map("log_rastreabilidade")
 }
+
+// Modelo do catálogo SINAPI + enums. Não altera nenhum model atual.
+ 
+enum RegimeSinapi {
+  DESONERADO
+  NAO_DESONERADO
+}
+ 
+enum TipoSinapi {
+  INSUMO
+  COMPOSICAO
+}
+ 
+model ItemSinapi {
+  id            String       @id @default(uuid())
+  codigo        String // código SINAPI do insumo/composição
+  descricao     String
+  unidade       String
+  precoMediano  Decimal      @db.Decimal(12, 2)
+  uf            String       @db.Char(2)
+  mesReferencia Int // 1–12
+  anoReferencia Int
+  regime        RegimeSinapi @default(NAO_DESONERADO)
+  tipo          TipoSinapi   @default(INSUMO)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+ 
+  // Chave natural: idempotência do importador (upsert por esta combinação).
+  @@unique([codigo, uf, mesReferencia, anoReferencia, regime])
+  // Índices de apoio. A busca textual rápida (GIN/pg_trgm) é criada na migração
+  // SQL dedicada (prisma/migrations/.../sinapi_trgm.sql), pois usa gin_trgm_ops.
+  @@index([codigo])
+  @@index([uf])
+}
