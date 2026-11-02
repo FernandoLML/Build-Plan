@@ -1,23 +1,28 @@
 // Caminho: /backend/src/scripts/importSinapi.ts
-// Importador idempotente do catálogo SINAPI.
+// Importador do catálogo SINAPI. Aceita a planilha oficial (.xlsx) OU um JSON
+// (amostra). Estratégia "replace-by-competência": apaga o slice
+// (uf+mês+ano+regime) e insere em lote com createMany (chunks), tudo numa
+// transação — idempotente (reexecutar substitui a competência) e rápido.
 //
-// Fonte configurável via env SINAPI_SOURCE (default: amostra versionada em
-// prisma/seed/sinapi.sample.json). Aceita caminho de arquivo OU URL http(s)
-// (Node 20+ tem fetch global), permitindo agendar a atualização mensal sem
-// nenhum serviço vivo em paralelo. Reexecutar é seguro: faz upsert pela chave
-// natural (codigo + uf + mesReferencia + anoReferencia + regime).
+// Uso:
+//   npm run sinapi:import                       # usa SINAPI_SOURCE ou a amostra
+//   SINAPI_SOURCE="prisma/seed/sinapi/SINAPI 202609 SC.xlsx" npm run sinapi:import
+//   SINAPI_UF=SC SINAPI_MES=9 SINAPI_ANO=2026 npm run sinapi:import
 //
-// Uso: npm run sinapi:import        (amostra local)
-//      SINAPI_SOURCE=./dados.json npm run sinapi:import
-//      SINAPI_SOURCE=https://.../sinapi-sc.json npm run sinapi:import
+// Competência: derivada do nome do arquivo (…YYYYMM… e sufixo UF) quando possível,
+// com override por env (SINAPI_UF / SINAPI_MES / SINAPI_ANO / SINAPI_REGIME).
 //
 // AJUSTE o import do prisma client para o caminho real do seu projeto.
 
 import { readFile } from "node:fs/promises";
+import { basename, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import path from "node:path";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { parsePlanilhaSinapi } from "../modules/sinapi/sinapi.parser.js";
+import type { RegistroSinapi } from "../modules/sinapi/sinapi.parser.js";
+
+const CHUNK = 1000;
 
 const registroSchema = z.object({
   codigo: z.string().trim().min(1),
@@ -31,68 +36,83 @@ const registroSchema = z.object({
   tipo: z.enum(["INSUMO", "COMPOSICAO"]).default("INSUMO"),
 });
 
-const CHUNK = 500;
+type Competencia = Pick<RegistroSinapi, "uf" | "mesReferencia" | "anoReferencia" | "regime">;
 
-async function carregarFonte(source: string): Promise<unknown[]> {
+// Deriva competência do nome do arquivo (ex.: "SINAPI 202609 SC.xlsx") + env.
+function resolverCompetencia(source: string): Competencia {
+  const nome = basename(source);
+  const mAno = /(\d{4})(\d{2})/.exec(nome);
+  const mUf = /\b([A-Z]{2})\b(?=\.[^.]+$)/.exec(nome.toUpperCase());
+
+  const uf = (process.env.SINAPI_UF ?? mUf?.[1] ?? "SC").toUpperCase();
+  const anoReferencia = Number(process.env.SINAPI_ANO ?? mAno?.[1] ?? NaN);
+  const mesReferencia = Number(process.env.SINAPI_MES ?? mAno?.[2] ?? NaN);
+  const regime = (process.env.SINAPI_REGIME ?? "NAO_DESONERADO") as Competencia["regime"];
+
+  if (!Number.isInteger(anoReferencia) || !Number.isInteger(mesReferencia)) {
+    throw new Error(
+      "Competência indefinida. Informe no nome do arquivo (…YYYYMM…) ou via SINAPI_ANO/SINAPI_MES.",
+    );
+  }
+  return { uf, mesReferencia, anoReferencia, regime };
+}
+
+async function obterRegistros(source: string): Promise<RegistroSinapi[]> {
+  if (/\.xlsx?$/i.test(source)) {
+    const comp = resolverCompetencia(source);
+    console.log(`[sinapi] Planilha | UF=${comp.uf} ${comp.mesReferencia}/${comp.anoReferencia} (${comp.regime})`);
+    return parsePlanilhaSinapi(source, comp);
+  }
+  // Fallback JSON (amostra): array de registros já no formato do schema.
   const conteudo = /^https?:\/\//i.test(source)
     ? await fetch(source).then((r) => {
         if (!r.ok) throw new Error(`Falha ao baixar a fonte (${r.status}).`);
         return r.text();
       })
     : await readFile(source, "utf-8");
-
   const json = JSON.parse(conteudo);
-  if (!Array.isArray(json)) throw new Error("A fonte deve ser um array JSON de registros.");
-  return json;
-}
-
-async function main() {
-  const defaultPath = path.resolve(
-    path.dirname(fileURLToPath(import.meta.url)),
-    "../../prisma/seed/sinapi.sample.json",
-  );
-  const source = process.env.SINAPI_SOURCE ?? defaultPath;
-  console.log(`[sinapi] Fonte: ${source}`);
-
-  const brutos = await carregarFonte(source);
-  const registros = brutos.map((r, i) => {
+  if (!Array.isArray(json)) throw new Error("A fonte JSON deve ser um array de registros.");
+  return json.map((r, i) => {
     const parsed = registroSchema.safeParse(r);
     if (!parsed.success) {
       throw new Error(`Registro inválido no índice ${i}: ${parsed.error.issues[0]?.message}`);
     }
     return parsed.data;
   });
+}
 
-  console.log(`[sinapi] ${registros.length} registros válidos. Importando…`);
+async function main() {
+  const defaultPath = resolve(
+    fileURLToPath(new URL("../../prisma/seed/sinapi.sample.json", import.meta.url)),
+  );
+  const source = process.env.SINAPI_SOURCE ?? defaultPath;
+  console.log(`[sinapi] Fonte: ${source}`);
 
-  let processados = 0;
-  for (let i = 0; i < registros.length; i += CHUNK) {
-    const lote = registros.slice(i, i + CHUNK);
-    await prisma.$transaction(
-      lote.map((r) =>
-        prisma.itemSinapi.upsert({
-          where: {
-            codigo_uf_mesReferencia_anoReferencia_regime: {
-              codigo: r.codigo,
-              uf: r.uf,
-              mesReferencia: r.mesReferencia,
-              anoReferencia: r.anoReferencia,
-              regime: r.regime,
-            },
-          },
-          create: r,
-          update: {
-            descricao: r.descricao,
-            unidade: r.unidade,
-            precoMediano: r.precoMediano,
-            tipo: r.tipo,
-          },
-        }),
-      ),
-    );
-    processados += lote.length;
-    console.log(`[sinapi] ${processados}/${registros.length}`);
+  const registros = await obterRegistros(source);
+  if (registros.length === 0) {
+    console.warn("[sinapi] Nenhum registro válido encontrado. Abortando.");
+    return;
   }
+
+  // Competência única do lote (todos os registros compartilham a mesma).
+  const { uf, mesReferencia, anoReferencia, regime } = registros[0]!;
+  console.log(`[sinapi] ${registros.length} registros válidos. Substituindo competência…`);
+
+  await prisma.$transaction(
+    async (tx) => {
+      const removidos = await tx.itemSinapi.deleteMany({
+        where: { uf, mesReferencia, anoReferencia, regime },
+      });
+      if (removidos.count > 0) console.log(`[sinapi] ${removidos.count} registros antigos removidos.`);
+
+      for (let i = 0; i < registros.length; i += CHUNK) {
+        const lote = registros.slice(i, i + CHUNK);
+        await tx.itemSinapi.createMany({ data: lote });
+        console.log(`[sinapi] inseridos ${Math.min(i + CHUNK, registros.length)}/${registros.length}`);
+      }
+    },
+    { timeout: 120_000 },
+  );
 
   console.log("[sinapi] Importação concluída.");
 }

@@ -1,8 +1,8 @@
 # Build-Plan — Raio-X Arquitetural e Técnico
 
-> **Documento vivo** · Snapshot de referência gerado em 2026-11-01 a partir do `main` (commit `b42f18b`, pós-merge da integração SINAPI — PR #18).
+> **Documento vivo** · Última revisão em 2026-11-01, com base no `main` (commit `19e6936`, pós-merge do PR #19) **mais o trabalho ainda não commitado** da branch `feature-sinapi-fase-2`. Itens que dependem desse trabalho estão marcados com 🚧. Ver [Histórico de revisões](#histórico-de-revisões).
 > Objetivo: consolidar decisões, padrões e convenções dos marcos M1–M7 + SINAPI e servir de mapa para as próximas fases.
-> Documentos relacionados: [RFC.md](RFC.md) · [marco-m4-consolidacao.md](marco-m4-consolidacao.md) · [marco-m5-consolidacao.md](marco-m5-consolidacao.md) · [frontend-consolidacao.md](frontend-consolidacao.md)
+> Documentos relacionados: [RFC.md](RFC.md) · [marco-m4-consolidacao.md](marco-m4-consolidacao.md) · [marco-m5-consolidacao.md](marco-m5-consolidacao.md) · [frontend-consolidacao.md](frontend-consolidacao.md) · [registro-comparacao.md](registro-comparacao.md)
 
 ---
 
@@ -37,7 +37,7 @@ flowchart LR
   SPA -- "Axios + Bearer token" --> MW --> R --> AUTH --> C --> S -- Prisma Client --> DB
   C -. erros .-> E
   S -. AppError .-> E
-  GH -- "npm run sinapi:import (upsert)" --> DB
+  GH -- "npm run sinapi:import (replace por competência 🚧)" --> DB
 ```
 
 ---
@@ -73,6 +73,7 @@ flowchart LR
 
 **Tratamento assíncrono:** não há `express-async-errors`; usa-se o wrapper próprio `asyncHandler` (ver §3.4).
 **Sem dependências para CSV:** parsing do Memorial e exportação de listas são implementados nativamente.
+**Leitura de planilhas 🚧:** `xlsx` `^0.18.5` entra em `devDependencies`, pois só o importador SINAPI o usa (nenhuma rota da API o carrega). O `npm audit` aponta vulnerabilidades altas sem correção disponível no npm (ver §7, item 16).
 
 ### 1.3 Frontend — bibliotecas de runtime
 
@@ -185,10 +186,34 @@ erDiagram
 **Seeds**
 
 - Não há `prisma db seed` configurado.
-- O único dado semente é `prisma/seed/sinapi.sample.json` (amostra SC, ref. 08/2025), carregado por `npm run sinapi:import` (`src/scripts/importSinapi.ts`):
-  - fonte configurável por `SINAPI_SOURCE` (caminho local ou URL http/https);
-  - valida cada registro com Zod e aborta no primeiro inválido;
-  - `upsert` pela chave natural em lotes de 500 dentro de `$transaction` → **idempotente**.
+- Os dados semente são carregados por `npm run sinapi:import` (`src/scripts/importSinapi.ts`), sempre a partir de `SINAPI_SOURCE`; sem essa variável, usa a amostra JSON.
+
+| Fonte | Arquivo | Conteúdo |
+|---|---|---|
+| Amostra JSON (default) | `prisma/seed/sinapi.sample.json` | 10 registros, SC, ref. 08/2025, `NAO_DESONERADO`. |
+| Planilha oficial 🚧 | `prisma/seed/sinapi/SINAPI 202609 SC.xlsx` (~1 MB) | Relatório da Caixa, ref. 09/2026, aba `ISD (2)` (sem desoneração): 4.878 insumos, 4.135 com preço válido em SC. Também é a fixture de `sinapi.parser.spec.ts`. |
+
+**Fluxo do importador 🚧**
+
+```mermaid
+flowchart TD
+  A["SINAPI_SOURCE<br/>(default: amostra JSON)"] --> B{"Extensão .xls/.xlsx?"}
+  B -- sim --> C["resolverCompetencia()<br/>nome do arquivo + env"]
+  C --> D["parsePlanilhaSinapi()<br/>sinapi.parser.ts"]
+  B -- não --> E["JSON local ou URL http(s)<br/>validação Zod (aborta no 1º inválido)"]
+  D --> F{"Há registros?"}
+  E --> F
+  F -- não --> G["Aviso e encerra sem alterar o banco"]
+  F -- sim --> H["$transaction (timeout 120 s):<br/>deleteMany do slice + createMany em lotes de 1.000"]
+```
+
+- **Estratégia replace-by-competência:** apaga o slice `uf + mesReferencia + anoReferencia + regime` e reinsere tudo na mesma transação. Reexecutar é **idempotente** quanto ao conteúdo, mas os `id` dos itens mudam a cada carga; hoje isso não tem impacto, pois `ItemSinapi` não é alvo de FK.
+- **Competência da planilha:** derivada do nome do arquivo (`…YYYYMM… UF.xlsx`), com override por `SINAPI_UF`, `SINAPI_MES`, `SINAPI_ANO` e `SINAPI_REGIME`. Sem ano/mês definidos, o importador aborta. Os defaults são UF `SC` e regime `NAO_DESONERADO`.
+- **Parser:** localiza as colunas pelo texto normalizado do cabeçalho (linha 10), o que tolera mudanças de posição entre competências. Ignora linhas sem código, descrição, unidade ou preço positivo na UF, e grava `tipo = INSUMO`: composições ainda não são importadas.
+- **Limitações:**
+  - planilhas só são lidas de caminho local; URL funciona apenas para JSON;
+  - o slice apagado é o do **primeiro registro**, então um JSON com mais de uma competência não é substituído corretamente. Ao reimportar, a transação falha por violação de unicidade e é revertida. A amostra atual tem uma única competência;
+  - a aba é fixa em `ISD (2)` (sem desoneração) e `SINAPI_REGIME` não é conferido contra ela (ver §7, item 18).
 
 ---
 
@@ -201,7 +226,9 @@ backend/
 ├── prisma/
 │   ├── schema.prisma
 │   ├── migrations/            # 3 migrações + migration_lock.toml
-│   └── seed/sinapi.sample.json
+│   └── seed/
+│       ├── sinapi.sample.json
+│       └── sinapi/SINAPI 202609 SC.xlsx   # 🚧 planilha oficial e fixture do parser
 ├── prisma.config.ts
 ├── jest.config.ts
 └── src/
@@ -216,7 +243,7 @@ backend/
     ├── controllers/           # classes + instância singleton exportada
     ├── services/              # classes + instância singleton exportada
     ├── routes/                # routers Express por recurso
-    ├── modules/sinapi/        # NOVO padrão modular (schema/controller/service/routes/test colocados)
+    ├── modules/sinapi/        # NOVO padrão modular (schema/controller/service/routes/test colocados + 🚧 parser)
     ├── scripts/importSinapi.ts
     └── tests/                 # *.spec.ts + helpers/ + setup.ts
 ```
@@ -332,7 +359,7 @@ Contrato de resposta de erro:
 | `export.service` | CSV RFC 4180 (CRLF, escape de aspas), servido com `Content-Disposition: attachment`. |
 | `dashboard.service` | KPIs: totais de etapas/materiais, vínculos por status com percentual, progresso de tarefas, orçamento consolidado. |
 | `log.service` | Timeline por vínculo e agregado por obra. |
-| `modules/sinapi` | Busca `descricao ILIKE %q%` **ou** `codigo LIKE q%`, filtros `uf`/`regime`, `limit` 1–50 (default 10). |
+| `modules/sinapi` | Busca `descricao ILIKE %q%` **ou** `codigo LIKE q%`, filtros `uf`/`regime`, `limit` 1–50 (default 10), ordenada por `codigo` e `descricao`. **Não filtra por competência** (ver §7, item 15). 🚧 `sinapi.parser.ts` lê a planilha oficial e é usado apenas pelo importador. |
 
 ---
 
@@ -419,6 +446,8 @@ Convenções: queries dependentes de obra usam `enabled: !!obraId`; mutações i
 
 **Formulários:** `react-hook-form` + `zodResolver` em `LoginPage`, `RegisterPage` e nos dialogs (`ObraFormDialog`, `MaterialFormDialog`, `EtapaFormDialog`, `VincularEtapaDialog`, `MudarStatusDialog`, `InformarPrecoDialog`). Os schemas Zod do front são **duplicados** dos do back (não há pacote compartilhado).
 
+**Busca SINAPI no `InformarPrecoDialog`:** chama `useBuscaSinapi({ q, limit: 8 })`, sem enviar `uf` nem `regime`. 🚧 As sugestões passam a aparecer em lista flutuante (`absolute`, `z-50`), que sobrepõe o modal sem deslocar os campos abaixo.
+
 > Lacuna: os endpoints de **Tarefas** (`/api/etapas/:etapaId/tarefas`, `/api/tarefas/:id`) existem no backend, mas ainda não são consumidos por nenhum módulo em `frontend/src/api/`.
 
 ---
@@ -437,9 +466,11 @@ Convenções: queries dependentes de obra usam `enabled: !!obraId`; mutações i
 | Fixtures | `tests/helpers/auth.helper.ts`: `criarUsuarioAutenticado()` (registra via API com e-mail único e devolve token), `criarObra`, `criarEtapa`, `criarMaterial`. Cenários multiusuário verificam isolamento (404 para recurso alheio). |
 | Scripts | `test` (carrega `.env.test`; `pretest` migra), `test:watch`, `test:ci` (usa env do job, flag `--ci`). |
 | Cobertura | **Não configurada** (sem `collectCoverage`/thresholds). |
-| Suítes | 12 arquivos `*.spec.ts` (96 casos): auth, obra, etapa, tarefa, material, vínculo, lista-compras, memorial, export, dashboard, log (em `src/tests/`) e sinapi (em `src/modules/sinapi/`). |
+| Suítes | 13 arquivos `*.spec.ts` (101 casos): auth, obra, etapa, tarefa, material, vínculo, lista-compras, memorial, export, dashboard, log (em `src/tests/`), sinapi e 🚧 sinapi.parser (em `src/modules/sinapi/`). |
 
 > Convenção: **todo teste do backend deve terminar em `.spec.ts`** — é o único padrão reconhecido pelo `testMatch`. A suíte SINAPI foi renomeada de `.test.ts` para `.spec.ts` por esse motivo. Ela semeia e limpa `ItemSinapi` em `beforeAll`/`afterAll`; o `resetDatabase()` global não trunca essa tabela, então o seed persiste entre os casos da suíte.
+>
+> 🚧 `sinapi.parser.spec.ts` é o primeiro teste unitário do backend (5 casos) e valida a planilha real: 4.135 insumos de SC e erros de aba ou UF inexistentes. Embora o parser não use banco, a suíte **precisa de PostgreSQL**, pois o `setup.ts` global executa `resetDatabase()` antes de cada caso. A planilha precisa ser commitada junto, ou a suíte falha no CI.
 
 ### 5.2 Frontend
 
@@ -469,6 +500,8 @@ Todos usam Node 20.x com cache npm por lockfile e `concurrency` por ref nos CIs 
 3. **Lint ausente:** o frontend tem `npm run lint`, porém nenhum workflow o executa; o backend não tem linter.
 4. **Import SINAPI** não roda `prisma migrate deploy` — assume que produção já está migrada.
 5. **Sem deploy automatizado** (CD) para backend ou frontend.
+6. **Execução agendada do import quebrada:** no cron, `inputs.source` é vazio e o workflow define `SINAPI_SOURCE=""`. Como o script usa `process.env.SINAPI_SOURCE ?? defaultPath`, a string vazia não cai no default e a leitura falha com `ENOENT` (reproduzido localmente). O mesmo vale para um disparo manual sem `source`. O `??` já existia antes da fase 2. Ver §7, item 14.
+7. **Texto do workflow desatualizado 🚧:** o passo do `sinapi-import.yml` ainda diz "upsert idempotente", e o input `source` ainda sugere URL de forma genérica, embora planilhas só possam ser lidas de caminho local.
 
 ---
 
@@ -577,6 +610,11 @@ Base: `http://localhost:3333`. 🔒 = exige `Authorization: Bearer <JWT>`. Todas
 | 11 | Baixa | Dependência `cn` não utilizada no frontend; versões de TypeScript diferentes entre pacotes; `jest@30` com `ts-jest@29`/`@types/jest@29`. | Alinhar dependências. |
 | 12 | Baixa | Sem cobertura de testes configurada; endpoints de Tarefas sem consumo no frontend. | Adicionar `--coverage` com thresholds; planejar UI de tarefas. |
 | 13 | Baixa | Sem `engines`/`.nvmrc`; versão do Node definida só no CI. | Adicionar `"engines": { "node": ">=20" }`. |
+| 14 | Alta | `sinapi-import.yml` falha com `ENOENT` quando `source` está vazio, inclusive no cron mensal (§5.3, ponto 6). Corrigido isso, o job carregaria apenas a amostra de 08/2025, sem dados novos. | Trocar `??` por `\|\|` no script e definir de onde o job obtém a planilha de cada mês. |
+| 15 | Média | A busca SINAPI não filtra por competência e o `InformarPrecoDialog` não envia `uf`/`regime`. Com mais de uma competência carregada (ex.: amostra 08/2025 + planilha 09/2026), preços antigos e atuais do mesmo código competem pelo limite de 8 sugestões. | Retornar só a competência mais recente e enviar a UF da obra. |
+| 16 | Média | 🚧 `xlsx@0.18.5` tem alertas altos no `npm audit` (Prototype Pollution e ReDoS), sem correção no npm. O risco é contido enquanto só o importador processar planilhas oficiais. | Avaliar a distribuição oficial da SheetJS ou outra biblioteca antes de aceitar arquivos de terceiros. |
+| 17 | Baixa | 🚧 `sinapi.parser.spec.ts` declara não depender de banco, mas o `setup.ts` global exige PostgreSQL; além disso, cada um dos 5 casos relê a planilha inteira. | Separar o setup de banco dos testes unitários e ler a planilha uma vez em `beforeAll`. |
+| 18 | Média | 🚧 `SINAPI_REGIME=DESONERADO` com a aba fixa `ISD (2)` grava preços **sem desoneração** rotulados como desonerados, sem nenhum erro. O importador também não valida a faixa de `SINAPI_MES`. | Validar competência e regime com Zod e derivar a aba do regime (ou conferir o título da planilha). |
 
 ---
 
@@ -589,7 +627,10 @@ Base: `http://localhost:3333`. 🔒 = exige `Authorization: Bearer <JWT>`. Todas
 | `JWT_EXPIRES_IN` | backend | — | `8h` | Validade do token. |
 | `PORT` | backend | — | `3333` | Porta HTTP. |
 | `NODE_ENV` | backend | — | `development` | Controla log do Prisma e singleton global. |
-| `SINAPI_SOURCE` | backend (script) | — | `prisma/seed/sinapi.sample.json` | Fonte do importador (arquivo ou URL). |
+| `SINAPI_SOURCE` | backend (script) | — | `prisma/seed/sinapi.sample.json` | Fonte do importador: JSON (arquivo ou URL) ou 🚧 planilha `.xlsx` (só arquivo). Se definida como vazia, o script falha (§7, item 14). |
+| `SINAPI_UF` 🚧 | backend (script) | — | UF do nome do arquivo, senão `SC` | Coluna de preço e UF gravada. Só para planilha. |
+| `SINAPI_MES`, `SINAPI_ANO` 🚧 | backend (script) | ✔ se ausentes do nome do arquivo | `YYYYMM` do nome do arquivo | Competência. Só para planilha. |
+| `SINAPI_REGIME` 🚧 | backend (script) | — | `NAO_DESONERADO` | Regime gravado; não muda a aba lida (§7, item 18). Só para planilha. |
 | `VITE_API_URL` | frontend | — | `http://localhost:3333/api` | Base do Axios. |
 | `POSTGRES_*`, `PGADMIN_*` | raiz (compose) | ✔ p/ compose | — | Containers locais. |
 
@@ -605,6 +646,7 @@ npm run dev              # tsx watch
 npm run prisma:migrate   # nova migração (dev)
 npm test                 # migra schema test_buildplan e roda Jest
 npm run sinapi:import    # carrega a amostra SINAPI (idempotente)
+SINAPI_SOURCE="prisma/seed/sinapi/SINAPI 202609 SC.xlsx" npm run sinapi:import   # 🚧 planilha oficial
 
 # Frontend
 cd frontend
@@ -613,3 +655,12 @@ npm test                 # Vitest
 npm run lint
 npm run build            # tsc --noEmit && vite build
 ```
+
+## Histórico de revisões
+
+| Data | Base | Mudanças |
+|---|---|---|
+| 2026-11-01 | `b42f18b` (PR #18) | Snapshot inicial: marcos M1–M7 + integração SINAPI. |
+| 2026-11-01 | `19e6936` (PR #19) + trabalho não commitado de `feature-sinapi-fase-2` | Importador com planilha oficial e replace por competência, parser e `xlsx`; lista flutuante no `InformarPrecoDialog`; contagem de testes; novas variáveis de ambiente; achados 14–18. Conferido com `tsc --noEmit` no backend e testes completos: backend 101/101, frontend 21/21. |
+
+> **Ao fazer o merge da fase 2:** remover os marcadores 🚧 e atualizar o commit de referência no cabeçalho.
