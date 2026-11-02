@@ -109,35 +109,36 @@ export function InformarPrecoDialog({ open, onOpenChange, item, obraId }: Inform
                 onChange={(e) => setBusca(e.target.value)}
                 autoComplete="off"
               />
-            </div>
 
-            {buscaDebounced.trim().length >= 2 && (
-              <div className="mt-1 max-h-48 overflow-y-auto rounded-md border border-slate-800 bg-slate-950">
-                {isFetching && <p className="px-3 py-2 text-xs text-slate-500">Buscando…</p>}
-                {!isFetching && (!sugestoes || sugestoes.length === 0) && (
-                  <p className="px-3 py-2 text-xs text-slate-500">Nenhum item encontrado.</p>
-                )}
-                {!isFetching &&
-                  sugestoes?.map((ref) => (
-                    <button
-                      key={ref.id}
-                      type="button"
-                      onClick={() => aplicarReferencia(ref)}
-                      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-800/60"
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate text-slate-200">{ref.descricao}</span>
-                        <span className="text-xs text-slate-500">
-                          {ref.codigo} · {ref.unidade} · {ref.uf}
+              {/* Lista flutuante — sobrepõe o modal sem deslocar os campos abaixo */}
+              {buscaDebounced.trim().length >= 2 && (
+                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border border-slate-800 bg-slate-900 shadow-lg">
+                  {isFetching && <p className="px-3 py-2 text-xs text-slate-500">Buscando…</p>}
+                  {!isFetching && (!sugestoes || sugestoes.length === 0) && (
+                    <p className="px-3 py-2 text-xs text-slate-500">Nenhum item encontrado.</p>
+                  )}
+                  {!isFetching &&
+                    sugestoes?.map((ref) => (
+                      <button
+                        key={ref.id}
+                        type="button"
+                        onClick={() => aplicarReferencia(ref)}
+                        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-800/60"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-slate-200">{ref.descricao}</span>
+                          <span className="text-xs text-slate-500">
+                            {ref.codigo} · {ref.unidade} · {ref.uf}
+                          </span>
                         </span>
-                      </span>
-                      <span className="shrink-0 tabular-nums text-emerald-400">
-                        {formatarMoeda(ref.precoMediano)}
-                      </span>
-                    </button>
-                  ))}
-              </div>
-            )}
+                        <span className="shrink-0 tabular-nums text-emerald-400">
+                          {formatarMoeda(ref.precoMediano)}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-1">
