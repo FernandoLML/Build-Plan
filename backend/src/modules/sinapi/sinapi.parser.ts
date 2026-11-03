@@ -5,12 +5,14 @@
 
 import { readFileSync } from "node:fs";
 import * as XLSX from "xlsx";
+import { normalizarCodigoSinapi } from "./sinapi.codigo.js";
 
 export type RegimeSinapi = "DESONERADO" | "NAO_DESONERADO";
 export type TipoSinapi = "INSUMO" | "COMPOSICAO";
 
 export interface RegistroSinapi {
   codigo: string;
+  codigoNormalizado: string; // para correspondência com Material.codigoSinapi
   descricao: string;
   unidade: string;
   precoMediano: number;
@@ -92,8 +94,11 @@ export function parsePlanilhaSinapi(caminho: string, opts: OpcoesParser): Regist
     const unidade = String(row[col.unidade] ?? "").trim();
     if (!descricao || !unidade) continue;
 
+    const codigo = String(codBruto).trim();
+
     registros.push({
-      codigo: String(codBruto).trim(),
+      codigo,
+      codigoNormalizado: normalizarCodigoSinapi(codigo) ?? codigo,
       descricao,
       unidade,
       precoMediano: preco,

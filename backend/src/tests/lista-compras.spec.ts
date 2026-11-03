@@ -1,8 +1,9 @@
 // Caminho: /backend/src/tests/lista-compras.spec.ts
 // Testes de integração das Listas de Compras (M4 — Fase 2): geração/snapshot,
 // totais com Decimal, fluxo "Informar", ownership e remoção em cascata.
+// Branch 1: + orçamento automático via catálogo SINAPI.
 
-import { describe, it, expect } from "@jest/globals";
+import { describe, it, expect, afterEach } from "@jest/globals";
 import request from "supertest";
 import { app } from "../app.js";
 import { prisma } from "../lib/prisma.js";
@@ -98,7 +99,7 @@ describe("Totais orçados (Decimal)", () => {
 
     const res = await gerarLista(usuario.token, etapaId);
 
-    // Sem preço de referência (SINAPI ainda não modelado) => tudo pendente.
+    // Materiais sem codigoSinapi => sem correspondência => tudo pendente.
     expect(res.body.totais).toMatchObject({ totalItens: 2, itensSemPreco: 2 });
     expect(Number(res.body.totais.totalOrcado)).toBe(0);
   });
@@ -195,5 +196,91 @@ describe("Remoção em cascata", () => {
       .get(`/api/listas-compras/${listaId}`)
       .set("Authorization", `Bearer ${token}`);
     expect(get.status).toBe(404);
+  });
+});
+
+describe("Orçamento automático (SINAPI)", () => {
+  // Competência de referência padrão (bate com sinapiConfig: SC 09/2026, sem deson.).
+  const COMP = { uf: "SC", mesReferencia: 9, anoReferencia: 2026, regime: "NAO_DESONERADO" as const };
+  const CODIGO_CRU = "00000370";
+  const CODIGO_NORMALIZADO = "370";
+
+  async function seedItemSinapi(precoMediano: string): Promise<void> {
+    await prisma.itemSinapi.create({
+      data: {
+        codigo: CODIGO_CRU,
+        codigoNormalizado: CODIGO_NORMALIZADO,
+        descricao: "AREIA MEDIA - POSTO JAZIDA",
+        unidade: "M3",
+        precoMediano,
+        uf: COMP.uf,
+        mesReferencia: COMP.mesReferencia,
+        anoReferencia: COMP.anoReferencia,
+        regime: COMP.regime,
+        tipo: "INSUMO",
+      },
+    });
+  }
+
+  afterEach(async () => {
+    await prisma.itemSinapi.deleteMany({ where: { codigoNormalizado: CODIGO_NORMALIZADO } });
+  });
+
+  it("precifica automaticamente material com código SINAPI existente em SC", async () => {
+    await seedItemSinapi("32.00");
+    const { token, etapaId, materialId } = await cenarioComVinculo("sinapi", 10);
+    // Material guarda o código no formato "cru"; a resolução normaliza ("370").
+    await prisma.material.update({
+      where: { id: materialId },
+      data: { codigoSinapi: CODIGO_CRU },
+    });
+
+    const res = await gerarLista(token, etapaId);
+
+    expect(res.status).toBe(201);
+    const item = res.body.itens[0];
+    expect(item.origemPreco).toBe("SINAPI");
+    expect(Number(item.precoUnitario)).toBe(32);
+    expect(Number(item.precoTotal)).toBe(320); // 32 * 10
+    expect(res.body.totais.itensSemPreco).toBe(0);
+    expect(Number(res.body.totais.totalOrcado)).toBe(320);
+  });
+
+  it("marca PENDENTE quando o material não tem correspondência no catálogo", async () => {
+    // Sem seed de ItemSinapi => código sem correspondência.
+    const { token, etapaId, materialId } = await cenarioComVinculo("pend", 10);
+    await prisma.material.update({
+      where: { id: materialId },
+      data: { codigoSinapi: "99999999" },
+    });
+
+    const res = await gerarLista(token, etapaId);
+
+    const item = res.body.itens[0];
+    expect(item.origemPreco).toBe("PENDENTE");
+    expect(item.precoUnitario).toBeNull();
+    expect(res.body.totais.itensSemPreco).toBe(1);
+    expect(Number(res.body.totais.totalOrcado)).toBe(0);
+  });
+
+  it("soma no total orçado apenas os itens precificados pelo SINAPI", async () => {
+    await seedItemSinapi("50.00");
+    const usuario = await criarUsuarioAutenticado("mix");
+    const obraId = await criarObra(usuario.token);
+    const etapaId = await criarEtapa(usuario.token, obraId);
+    const comCodigo = await criarMaterial(usuario.token, obraId, { nome: "Areia" });
+    const semCodigo = await criarMaterial(usuario.token, obraId, { nome: "Cimento" });
+    await prisma.material.update({
+      where: { id: comCodigo },
+      data: { codigoSinapi: CODIGO_NORMALIZADO },
+    });
+    await vincular(usuario.token, etapaId, comCodigo, 4);
+    await vincular(usuario.token, etapaId, semCodigo, 7);
+
+    const res = await gerarLista(usuario.token, etapaId);
+
+    expect(res.body.totais.totalItens).toBe(2);
+    expect(res.body.totais.itensSemPreco).toBe(1);
+    expect(Number(res.body.totais.totalOrcado)).toBe(200); // 50 * 4 (apenas "Areia")
   });
 });
