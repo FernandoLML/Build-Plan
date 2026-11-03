@@ -44,6 +44,13 @@ enum StatusTarefa {
   BLOQUEADA
 }
 
+/// Procedência do preço de um item da lista de compras.
+enum OrigemPreco {
+  SINAPI
+  MANUAL
+  PENDENTE
+}
+
 // ============================================================
 // ENTIDADES
 // ============================================================
@@ -74,10 +81,10 @@ model Obra {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  usuario        Usuario        @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  etapas         Etapa[]
-  materiais      Material[]
-  listasCompras  ListaCompras[]
+  usuario       Usuario        @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  etapas        Etapa[]
+  materiais     Material[]
+  listasCompras ListaCompras[]
 
   @@index([usuarioId])
   @@map("obra")
@@ -127,16 +134,16 @@ model Tarefa {
 
 /// Insumo do catálogo. Pertence diretamente à OBRA, não à etapa (Seção 5.2).
 model Material {
-  id           String         @id @default(uuid())
-  nome         String
-  especificacao String?       @map("especificacao")
-  unidade      String
-  quantidade   Decimal        @default(0) @db.Decimal(12, 3)
-  origem       OrigemMaterial @default(MANUAL)
-  codigoSinapi String?        @map("codigo_sinapi")
-  obraId       String         @map("obra_id")
-  createdAt    DateTime       @default(now()) @map("created_at")
-  updatedAt    DateTime       @updatedAt @map("updated_at")
+  id            String         @id @default(uuid())
+  nome          String
+  especificacao String?        @map("especificacao")
+  unidade       String
+  quantidade    Decimal        @default(0) @db.Decimal(12, 3)
+  origem        OrigemMaterial @default(MANUAL)
+  codigoSinapi  String?        @map("codigo_sinapi")
+  obraId        String         @map("obra_id")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
 
   obra     Obra                   @relation(fields: [obraId], references: [id], onDelete: Cascade)
   vinculos VinculoMaterialEtapa[]
@@ -162,7 +169,7 @@ model VinculoMaterialEtapa {
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
   material Material             @relation(fields: [materialId], references: [id], onDelete: Cascade)
-  etapa    Etapa               @relation(fields: [etapaId], references: [id], onDelete: Cascade)
+  etapa    Etapa                @relation(fields: [etapaId], references: [id], onDelete: Cascade)
   logs     LogRastreabilidade[]
 
   @@unique([materialId, etapaId])
@@ -191,16 +198,16 @@ model ListaCompras {
 /// Item da lista de compras. Congela o preço no momento da geração,
 /// preservando o histórico mesmo que o preço de referência mude (Seção 5.2).
 model ItemCompra {
-  id             String   @id @default(uuid())
-  listaComprasId String   @map("lista_compras_id")
-  materialId     String?  @map("material_id")
+  id             String       @id @default(uuid())
+  listaComprasId String       @map("lista_compras_id")
+  materialId     String?      @map("material_id")
   descricao      String
   unidade        String
-  quantidade     Decimal  @default(0) @db.Decimal(12, 3)
-  precoUnitario  Decimal? @map("preco_unitario") @db.Decimal(12, 2)
-  precoTotal     Decimal? @map("preco_total") @db.Decimal(12, 2)
-  origemPreco    String?  @map("origem_preco") // "sinapi" | "manual"
-  createdAt      DateTime @default(now()) @map("created_at")
+  quantidade     Decimal      @default(0) @db.Decimal(12, 3)
+  precoUnitario  Decimal?     @map("preco_unitario") @db.Decimal(12, 2)
+  precoTotal     Decimal?     @map("preco_total") @db.Decimal(12, 2)
+  origemPreco    OrigemPreco? @map("origem_preco")
+  createdAt      DateTime     @default(now()) @map("created_at")
 
   listaCompras ListaCompras @relation(fields: [listaComprasId], references: [id], onDelete: Cascade)
 
@@ -228,35 +235,38 @@ model LogRastreabilidade {
 }
 
 // Modelo do catálogo SINAPI + enums. Não altera nenhum model atual.
- 
+
 enum RegimeSinapi {
   DESONERADO
   NAO_DESONERADO
 }
- 
+
 enum TipoSinapi {
   INSUMO
   COMPOSICAO
 }
- 
+
 model ItemSinapi {
-  id            String       @id @default(uuid())
-  codigo        String // código SINAPI do insumo/composição
-  descricao     String
-  unidade       String
-  precoMediano  Decimal      @db.Decimal(12, 2)
-  uf            String       @db.Char(2)
-  mesReferencia Int // 1–12
-  anoReferencia Int
-  regime        RegimeSinapi @default(NAO_DESONERADO)
-  tipo          TipoSinapi   @default(INSUMO)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
- 
+  id                String       @id @default(uuid())
+  codigo            String // código SINAPI do insumo/composição
+  codigoNormalizado String // sem espaços e zeros à esquerda (ver normalizarCodigoSinapi)
+  descricao         String
+  unidade           String
+  precoMediano      Decimal      @db.Decimal(12, 2)
+  uf                String       @db.Char(2)
+  mesReferencia     Int // 1–12
+  anoReferencia     Int
+  regime            RegimeSinapi @default(NAO_DESONERADO)
+  tipo              TipoSinapi   @default(INSUMO)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
   // Chave natural: idempotência do importador (upsert por esta combinação).
   @@unique([codigo, uf, mesReferencia, anoReferencia, regime])
   // Índices de apoio. A busca textual rápida (GIN/pg_trgm) é criada na migração
   // SQL dedicada (prisma/migrations/.../sinapi_trgm.sql), pois usa gin_trgm_ops.
   @@index([codigo])
   @@index([uf])
+  // Resolução de preço: código normalizado + competência/UF.
+  @@index([codigoNormalizado, uf, mesReferencia, anoReferencia])
 }

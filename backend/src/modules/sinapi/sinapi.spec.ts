@@ -8,6 +8,7 @@ import request from "supertest";
 import jwt from "jsonwebtoken";
 import { app } from "../../app.js";
 import { prisma } from "../../lib/prisma.js";
+import { normalizarCodigoSinapi } from "./sinapi.codigo.js";
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
@@ -32,7 +33,9 @@ const seed = [
 
 beforeAll(async () => {
   await prisma.itemSinapi.deleteMany();
-  await prisma.itemSinapi.createMany({ data: seed });
+  await prisma.itemSinapi.createMany({
+    data: seed.map((r) => ({ ...r, codigoNormalizado: normalizarCodigoSinapi(r.codigo) ?? r.codigo })),
+  });
 });
 
 afterAll(async () => {

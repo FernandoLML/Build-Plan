@@ -21,6 +21,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { parsePlanilhaSinapi } from "../modules/sinapi/sinapi.parser.js";
 import type { RegistroSinapi } from "../modules/sinapi/sinapi.parser.js";
+import { normalizarCodigoSinapi } from "../modules/sinapi/sinapi.codigo.js";
 
 const CHUNK = 1000;
 
@@ -77,7 +78,10 @@ async function obterRegistros(source: string): Promise<RegistroSinapi[]> {
     if (!parsed.success) {
       throw new Error(`Registro inválido no índice ${i}: ${parsed.error.issues[0]?.message}`);
     }
-    return parsed.data;
+    return {
+      ...parsed.data,
+      codigoNormalizado: normalizarCodigoSinapi(parsed.data.codigo) ?? parsed.data.codigo,
+    };
   });
 }
 

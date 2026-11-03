@@ -2,8 +2,9 @@
 // Regra de negócio dos Itens de Compra (M4 — Fase 2).
 // Permite adicionar itens manuais e "Informar" preços (Tela 5), recalculando
 // e congelando o precoTotal. Ownership validado pela cadeia Item -> Lista -> Obra.
+// Branch 1: origemPreco usa o enum OrigemPreco (SINAPI | MANUAL | PENDENTE).
 
-import { Prisma } from "@prisma/client";
+import { OrigemPreco, Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../errors/app-error.js";
 import type { AddItemInput, UpdateItemInput } from "../schemas/item-compra.schema.js";
@@ -49,7 +50,7 @@ export class ItemCompraService {
         quantidade,
         precoUnitario,
         precoTotal,
-        origemPreco: precoUnitario ? "MANUAL" : "PENDENTE",
+        origemPreco: precoUnitario ? OrigemPreco.MANUAL : OrigemPreco.PENDENTE,
       },
     });
   }
@@ -72,8 +73,8 @@ export class ItemCompraService {
     const precoTotal = precoUnitario ? precoUnitario.mul(quantidade) : null;
 
     // origemPreco vira MANUAL quando um preço foi informado nesta atualização.
-    const origemPreco =
-      data.precoUnitario !== undefined ? "MANUAL" : item.origemPreco;
+    const origemPreco: OrigemPreco | null =
+      data.precoUnitario !== undefined ? OrigemPreco.MANUAL : item.origemPreco;
 
     return prisma.itemCompra.update({
       where: { id: itemId },
