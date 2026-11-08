@@ -2,10 +2,13 @@
 // Regra de negócio das Listas de Compras (M4 — Fase 2).
 // A lista é um SNAPSHOT (Seção 5.2): gerada sob demanda a partir dos vínculos
 // material-etapa, congelando os preços em ItemCompra no momento da geração.
+// Branch 1 (auto-pricing): o preço de referência vem do catálogo SINAPI.
 
-import { Prisma } from "@prisma/client";
+import { OrigemPreco, Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../errors/app-error.js";
+import { sinapiConfig } from "../config/sinapi.config.js";
+import { normalizarCodigoSinapi } from "../modules/sinapi/sinapi.codigo.js";
 
 export interface TotaisLista {
   totalItens: number;
@@ -42,13 +45,29 @@ export class ListaComprasService {
   }
 
   /**
-   * Preço de referência do insumo no momento da geração.
-   * HOOK: hoje retorna null porque a tabela SINAPI (populada por ETL — Seção 5.3)
-   * ainda não existe no schema. Quando existir, buscar aqui por `codigoSinapi`.
-   * O mecanismo de snapshot já está pronto: basta este método devolver o preço.
+   * Preço de referência do insumo no momento da geração (snapshot).
+   * Consulta o catálogo SINAPI pela competência/UF padrão (sinapiConfig),
+   * casando o código do material pelo valor NORMALIZADO (trim + zeros à esquerda),
+   * para evitar divergências como "00000370" vs "370".
    */
-  private resolverPrecoReferencia(_material: { codigoSinapi: string | null }): Prisma.Decimal | null {
-    return null;
+  private async resolverPrecoReferencia(material: {
+    codigoSinapi: string | null;
+  }): Promise<Prisma.Decimal | null> {
+    const codigoNormalizado = normalizarCodigoSinapi(material.codigoSinapi);
+    if (!codigoNormalizado) return null;
+
+    const item = await prisma.itemSinapi.findFirst({
+      where: {
+        codigoNormalizado,
+        uf: sinapiConfig.uf,
+        mesReferencia: sinapiConfig.mesReferencia,
+        anoReferencia: sinapiConfig.anoReferencia,
+        regime: sinapiConfig.regime,
+      },
+      select: { precoMediano: true },
+    });
+
+    return item?.precoMediano ?? null;
   }
 
   /**
@@ -73,21 +92,24 @@ export class ListaComprasService {
     }
 
     // Monta os itens congelando o preço (snapshot) no momento da geração.
-    const itensData = vinculos.map((vinculo) => {
-      const precoUnitario = this.resolverPrecoReferencia(vinculo.material);
-      const quantidade = vinculo.quantidade; // Prisma.Decimal
-      const precoTotal = precoUnitario ? precoUnitario.mul(quantidade) : null;
+    // A resolução de preço é assíncrona (consulta ao catálogo), daí o Promise.all.
+    const itensData = await Promise.all(
+      vinculos.map(async (vinculo) => {
+        const precoUnitario = await this.resolverPrecoReferencia(vinculo.material);
+        const quantidade = vinculo.quantidade; // Prisma.Decimal
+        const precoTotal = precoUnitario ? precoUnitario.mul(quantidade) : null;
 
-      return {
-        materialId: vinculo.material.id,
-        descricao: vinculo.material.nome,
-        unidade: vinculo.material.unidade,
-        quantidade,
-        precoUnitario,
-        precoTotal,
-        origemPreco: precoUnitario ? "SINAPI" : "PENDENTE",
-      };
-    });
+        return {
+          materialId: vinculo.material.id,
+          descricao: vinculo.material.nome,
+          unidade: vinculo.material.unidade,
+          quantidade,
+          precoUnitario,
+          precoTotal,
+          origemPreco: precoUnitario ? OrigemPreco.SINAPI : OrigemPreco.PENDENTE,
+        };
+      }),
+    );
 
     const lista = await prisma.$transaction(async (tx) => {
       return tx.listaCompras.create({
