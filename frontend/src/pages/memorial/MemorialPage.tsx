@@ -1,7 +1,7 @@
 // Caminho: /frontend/src/pages/memorial/MemorialPage.tsx
 // Tela 3 — Importação do Memorial (UC01). Layout split + stepper (Obsidian Precision).
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AxiosError } from "axios";
 import { Download, FileText, Loader2, UploadCloud } from "lucide-react";
@@ -33,10 +33,6 @@ export function MemorialPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [selecionados, setSelecionados] = useState<boolean[]>([]);
 
-  useEffect(() => {
-    if (preview.data) setSelecionados(preview.data.itens.map(() => true));
-  }, [preview.data]);
-
   if (!obraAtivaId) {
     return (
       <div className="rounded-lg border border-dashed border-slate-800 p-12 text-center">
@@ -65,7 +61,12 @@ export function MemorialPage() {
       setErro("Cole o conteúdo CSV ou selecione um arquivo antes de processar.");
       return;
     }
-    preview.mutate(csv, { onError: (e) => setErro(extrairMensagem(e, "Falha ao processar o memorial.")) });
+    preview.mutate(csv, {
+      // Todos os itens extraídos começam selecionados (inicializado no callback
+      // da mutação, e não num useEffect sobre preview.data).
+      onSuccess: (data) => setSelecionados(data.itens.map(() => true)),
+      onError: (e) => setErro(extrairMensagem(e, "Falha ao processar o memorial.")),
+    });
   }
 
   function confirmar() {

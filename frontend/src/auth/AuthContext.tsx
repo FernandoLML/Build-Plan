@@ -2,34 +2,21 @@
 // Estado global de autenticação: usuário, carregamento, login/logout e
 // restauração automática da sessão (GET /auth/me) na montagem da aplicação.
 
-import { createContext, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { authApi } from "@/api/auth";
 import { tokenStorage } from "@/lib/token";
 import type { LoginPayload, Usuario } from "@/types/auth";
-
-export interface AuthContextValue {
-  usuario: Usuario | null;
-  loading: boolean; // true enquanto restaura a sessão inicial
-  autenticado: boolean;
-  login: (payload: LoginPayload) => Promise<void>;
-  logout: () => void;
-  setUsuario: (usuario: Usuario) => void;
-}
-
-export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+import { AuthContext, type AuthContextValue } from "./AuthContextDef";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuarioState] = useState<Usuario | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  // Só há sessão a restaurar se existir token salvo; sem token, não carrega.
+  const [loading, setLoading] = useState<boolean>(() => tokenStorage.get() !== null);
 
   // Restaura a sessão ao montar, se houver token salvo.
   useEffect(() => {
-    const token = tokenStorage.get();
-    if (!token) {
-      setLoading(false);
-      return;
-    }
+    if (!tokenStorage.get()) return;
     authApi
       .me()
       .then((u) => setUsuarioState(u))

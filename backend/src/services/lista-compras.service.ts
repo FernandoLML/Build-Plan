@@ -45,29 +45,36 @@ export class ListaComprasService {
   }
 
   /**
-   * Preço de referência do insumo no momento da geração (snapshot).
-   * Consulta o catálogo SINAPI pela competência/UF padrão (sinapiConfig),
-   * casando o código do material pelo valor NORMALIZADO (trim + zeros à esquerda),
-   * para evitar divergências como "00000370" vs "370".
+   * Preços de referência dos insumos no momento da geração (snapshot).
+   * Consulta o catálogo SINAPI pela competência/UF padrão (sinapiConfig) em UMA
+   * única query (`codigoNormalizado IN (...)`), evitando N+1. O casamento usa o
+   * código NORMALIZADO (trim + zeros à esquerda), para evitar divergências como
+   * "00000370" vs "370". Retorna um Map codigoNormalizado -> precoMediano.
    */
-  private async resolverPrecoReferencia(material: {
-    codigoSinapi: string | null;
-  }): Promise<Prisma.Decimal | null> {
-    const codigoNormalizado = normalizarCodigoSinapi(material.codigoSinapi);
-    if (!codigoNormalizado) return null;
+  private async resolverPrecosReferencia(
+    codigosSinapi: ReadonlyArray<string | null>,
+  ): Promise<Map<string, Prisma.Decimal>> {
+    const codigos = [
+      ...new Set(
+        codigosSinapi
+          .map((codigo) => normalizarCodigoSinapi(codigo))
+          .filter((codigo): codigo is string => codigo !== null),
+      ),
+    ];
+    if (codigos.length === 0) return new Map();
 
-    const item = await prisma.itemSinapi.findFirst({
+    const itens = await prisma.itemSinapi.findMany({
       where: {
-        codigoNormalizado,
+        codigoNormalizado: { in: codigos },
         uf: sinapiConfig.uf,
         mesReferencia: sinapiConfig.mesReferencia,
         anoReferencia: sinapiConfig.anoReferencia,
         regime: sinapiConfig.regime,
       },
-      select: { precoMediano: true },
+      select: { codigoNormalizado: true, precoMediano: true },
     });
 
-    return item?.precoMediano ?? null;
+    return new Map(itens.map((item) => [item.codigoNormalizado, item.precoMediano]));
   }
 
   /**
@@ -91,25 +98,28 @@ export class ListaComprasService {
       );
     }
 
-    // Monta os itens congelando o preço (snapshot) no momento da geração.
-    // A resolução de preço é assíncrona (consulta ao catálogo), daí o Promise.all.
-    const itensData = await Promise.all(
-      vinculos.map(async (vinculo) => {
-        const precoUnitario = await this.resolverPrecoReferencia(vinculo.material);
-        const quantidade = vinculo.quantidade; // Prisma.Decimal
-        const precoTotal = precoUnitario ? precoUnitario.mul(quantidade) : null;
-
-        return {
-          materialId: vinculo.material.id,
-          descricao: vinculo.material.nome,
-          unidade: vinculo.material.unidade,
-          quantidade,
-          precoUnitario,
-          precoTotal,
-          origemPreco: precoUnitario ? OrigemPreco.SINAPI : OrigemPreco.PENDENTE,
-        };
-      }),
+    // Resolve todos os preços de referência numa única consulta ao catálogo
+    // e monta os itens congelando o preço (snapshot) no momento da geração.
+    const precos = await this.resolverPrecosReferencia(
+      vinculos.map((vinculo) => vinculo.material.codigoSinapi),
     );
+
+    const itensData = vinculos.map((vinculo) => {
+      const codigo = normalizarCodigoSinapi(vinculo.material.codigoSinapi);
+      const precoUnitario = (codigo && precos.get(codigo)) ?? null;
+      const quantidade = vinculo.quantidade; // Prisma.Decimal
+      const precoTotal = precoUnitario ? precoUnitario.mul(quantidade) : null;
+
+      return {
+        materialId: vinculo.material.id,
+        descricao: vinculo.material.nome,
+        unidade: vinculo.material.unidade,
+        quantidade,
+        precoUnitario,
+        precoTotal,
+        origemPreco: precoUnitario ? OrigemPreco.SINAPI : OrigemPreco.PENDENTE,
+      };
+    });
 
     const lista = await prisma.$transaction(async (tx) => {
       return tx.listaCompras.create({

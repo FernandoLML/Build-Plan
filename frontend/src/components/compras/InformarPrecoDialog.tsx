@@ -3,7 +3,7 @@
 // Inclui busca no catálogo SINAPI (autocomplete) que preenche o preço unitário.
 
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AxiosError } from "axios";
 import { Search } from "lucide-react";
@@ -25,6 +25,7 @@ import { useAtualizarItemCompra } from "@/hooks/useCompras";
 import { useBuscaSinapi } from "@/hooks/useSinapi";
 import { useDebounce } from "@/hooks/useDebounce";
 import { formatarMoeda } from "@/lib/format";
+import { SINAPI_REFERENCIA } from "@/lib/sinapi";
 
 interface InformarPrecoDialogProps {
   open: boolean;
@@ -37,30 +38,42 @@ export function InformarPrecoDialog({ open, onOpenChange, item, obraId }: Inform
   const atualizar = useAtualizarItemCompra(obraId);
   const [erro, setErro] = useState<string | null>(null);
 
-  // Busca SINAPI (autocomplete).
+  // Busca SINAPI (autocomplete) restrita à referência regional (UF + regime),
+  // a mesma usada na precificação automática da lista.
   const [busca, setBusca] = useState("");
   const buscaDebounced = useDebounce(busca, 300);
-  const { data: sugestoes, isFetching } = useBuscaSinapi({ q: buscaDebounced, limit: 8 }, open);
+  const { data: sugestoes, isFetching } = useBuscaSinapi(
+    { q: buscaDebounced, uf: SINAPI_REFERENCIA.uf, regime: SINAPI_REFERENCIA.regime, limit: 8 },
+    open,
+  );
 
   const {
     register,
     handleSubmit,
     reset,
-    watch,
+    control,
     setValue,
     formState: { errors },
   } = useForm<InformarPrecoValues>({ resolver: zodResolver(informarPrecoSchema) });
 
+  // Sincroniza o formulário (estado externo do react-hook-form) ao abrir.
   useEffect(() => {
     if (open && item) {
-      setErro(null);
-      setBusca("");
       reset({ precoUnitario: item.precoUnitario ? Number(item.precoUnitario) : 0 });
     }
   }, [open, item, reset]);
 
+  // Estado local (erro/busca) é limpo ao FECHAR — evita setState dentro de effect.
+  function handleOpenChange(aberto: boolean) {
+    if (!aberto) {
+      setErro(null);
+      setBusca("");
+    }
+    onOpenChange(aberto);
+  }
+
   const quantidade = Number(item?.quantidade ?? 0);
-  const precoDigitado = Number(watch("precoUnitario"));
+  const precoDigitado = Number(useWatch({ control, name: "precoUnitario" }));
   const subtotal = Number.isNaN(precoDigitado) ? 0 : precoDigitado * quantidade;
 
   function aplicarReferencia(ref: ItemSinapi) {
@@ -74,7 +87,7 @@ export function InformarPrecoDialog({ open, onOpenChange, item, obraId }: Inform
     atualizar.mutate(
       { id: item.id, payload: { precoUnitario: values.precoUnitario } },
       {
-        onSuccess: () => onOpenChange(false),
+        onSuccess: () => handleOpenChange(false),
         onError: (e) =>
           setErro(
             e instanceof AxiosError
@@ -86,7 +99,7 @@ export function InformarPrecoDialog({ open, onOpenChange, item, obraId }: Inform
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Informar preço</DialogTitle>
@@ -157,7 +170,7 @@ export function InformarPrecoDialog({ open, onOpenChange, item, obraId }: Inform
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={atualizar.isPending}>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={atualizar.isPending}>
               Cancelar
             </Button>
             <Button type="submit" disabled={atualizar.isPending}>

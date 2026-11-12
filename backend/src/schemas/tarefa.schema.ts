@@ -30,10 +30,19 @@ export const createTarefaSchema = z.object({
   ordem: z.number().int().min(0, "A ordem não pode ser negativa.").optional(),
 });
 
-export const updateTarefaSchema = createTarefaSchema.partial().refine(
-  (data) => Object.keys(data).length > 0,
-  { message: "Informe ao menos um campo para atualizar." },
-);
+// Na edição, `null` LIMPA o campo (ex.: data apagada no formulário);
+// ausente (undefined) mantém o valor atual.
+export const updateTarefaSchema = createTarefaSchema
+  .extend({
+    descricao: z.string().trim().max(2000).nullable(),
+    dataInicioPrev: isoDate.nullable(),
+    dataFimPrev: isoDate.nullable(),
+    dataConclusao: isoDate.nullable(),
+  })
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "Informe ao menos um campo para atualizar.",
+  });
 
 // Parâmetros de rota
 export const tarefaIdParamSchema = z.object({

@@ -115,4 +115,14 @@ describe("GET /api/sinapi", () => {
     expect(res.body.length).toBe(1);
     expect(res.body[0].regime).toBe("DESONERADO");
   });
+
+  it("encontra pelo código sem zeros à esquerda (normalizado)", async () => {
+    const res = await request(app)
+      .get("/api/sinapi")
+      .query({ q: "370", uf: "SC", regime: "NAO_DESONERADO" })
+      .set("Authorization", `Bearer ${tokenValido()}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.map((i: { codigo: string }) => i.codigo)).toEqual(["00000370"]);
+  });
 });

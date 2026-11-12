@@ -39,10 +39,18 @@ export function EtapaFormDialog({ open, onOpenChange, obraId, onCriada }: EtapaF
 
   useEffect(() => {
     if (open) {
-      setErro(null);
       reset({ nome: "", ordem: undefined });
     }
   }, [open, reset]);
+
+  // Estado local é limpo ao FECHAR (não num effect ao abrir): evita setState
+  // síncrono dentro de useEffect (react-hooks/set-state-in-effect).
+  function handleOpenChange(aberto: boolean) {
+    if (!aberto) {
+      setErro(null);
+    }
+    onOpenChange(aberto);
+  }
 
   function onSubmit(values: EtapaFormValues) {
     setErro(null);
@@ -51,7 +59,7 @@ export function EtapaFormDialog({ open, onOpenChange, obraId, onCriada }: EtapaF
       {
         onSuccess: (etapa) => {
           onCriada?.(etapa.id);
-          onOpenChange(false);
+          handleOpenChange(false);
         },
         onError: (e) =>
           setErro(
@@ -64,7 +72,7 @@ export function EtapaFormDialog({ open, onOpenChange, obraId, onCriada }: EtapaF
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Nova etapa</DialogTitle>
@@ -86,7 +94,7 @@ export function EtapaFormDialog({ open, onOpenChange, obraId, onCriada }: EtapaF
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={criar.isPending}>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={criar.isPending}>
               Cancelar
             </Button>
             <Button type="submit" disabled={criar.isPending}>

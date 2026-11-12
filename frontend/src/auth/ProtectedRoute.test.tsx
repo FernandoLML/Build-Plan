@@ -7,7 +7,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import { ProtectedRoute } from "./ProtectedRoute";
-import type { AuthContextValue } from "./AuthContext";
+import type { AuthContextValue } from "./AuthContextDef";
 
 vi.mock("./useAuth", () => ({ useAuth: vi.fn() }));
 import { useAuth } from "./useAuth";

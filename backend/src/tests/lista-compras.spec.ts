@@ -3,7 +3,7 @@
 // totais com Decimal, fluxo "Informar", ownership e remoção em cascata.
 // Branch 1: + orçamento automático via catálogo SINAPI.
 
-import { describe, it, expect, afterEach } from "@jest/globals";
+import { describe, it, expect, afterEach, jest } from "@jest/globals";
 import request from "supertest";
 import { app } from "../app.js";
 import { prisma } from "../lib/prisma.js";
@@ -282,5 +282,56 @@ describe("Orçamento automático (SINAPI)", () => {
     expect(res.body.totais.totalItens).toBe(2);
     expect(res.body.totais.itensSemPreco).toBe(1);
     expect(Number(res.body.totais.totalOrcado)).toBe(200); // 50 * 4 (apenas "Areia")
+  });
+
+  it("resolve todos os preços numa única consulta ao catálogo (sem N+1)", async () => {
+    await seedItemSinapi("10.00"); // código 370
+    await prisma.itemSinapi.create({
+      data: {
+        codigo: "00001379",
+        codigoNormalizado: "1379",
+        descricao: "CIMENTO PORTLAND CP II-32",
+        unidade: "KG",
+        precoMediano: "0.80",
+        ...COMP,
+        tipo: "INSUMO",
+      },
+    });
+
+    const usuario = await criarUsuarioAutenticado("lote");
+    const obraId = await criarObra(usuario.token);
+    const etapaId = await criarEtapa(usuario.token, obraId);
+    // Mesmo insumo em formatos distintos ("370" e "00000370") + outro código + sem código.
+    const materiais = [
+      { nome: "Areia A", codigo: CODIGO_NORMALIZADO, qtd: 2 },
+      { nome: "Areia B", codigo: CODIGO_CRU, qtd: 3 },
+      { nome: "Cimento", codigo: " 1379 ", qtd: 100 },
+      { nome: "Prego", codigo: null, qtd: 1 },
+    ];
+    for (const m of materiais) {
+      const id = await criarMaterial(usuario.token, obraId, { nome: m.nome });
+      await prisma.material.update({ where: { id }, data: { codigoSinapi: m.codigo } });
+      await vincular(usuario.token, etapaId, id, m.qtd);
+    }
+
+    const spy = jest.spyOn(prisma.itemSinapi, "findMany");
+    try {
+      const res = await gerarLista(usuario.token, etapaId);
+      expect(res.status).toBe(201);
+      expect(spy).toHaveBeenCalledTimes(1);
+
+      const porNome = Object.fromEntries(
+        res.body.itens.map((i: { descricao: string; precoTotal: string | null }) => [i.descricao, i.precoTotal]),
+      );
+      expect(Number(porNome["Areia A"])).toBe(20); // 10 * 2
+      expect(Number(porNome["Areia B"])).toBe(30); // 10 * 3
+      expect(Number(porNome["Cimento"])).toBe(80); // 0.80 * 100
+      expect(porNome["Prego"]).toBeNull();
+      expect(res.body.totais).toMatchObject({ totalItens: 4, itensSemPreco: 1 });
+      expect(Number(res.body.totais.totalOrcado)).toBe(130);
+    } finally {
+      spy.mockRestore();
+      await prisma.itemSinapi.deleteMany({ where: { codigoNormalizado: "1379" } });
+    }
   });
 });

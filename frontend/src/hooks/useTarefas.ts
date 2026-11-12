@@ -63,7 +63,7 @@ export function useExcluirTarefa(etapaId: string, obraId: string | null) {
  * Alternância rápida de status com atualização otimista: a lista (e, portanto,
  * a barra de progresso calculada a partir dela) muda imediatamente; em erro, o
  * snapshot anterior é restaurado. Ao final, a cascata é revalidada no servidor
- * (que também preenche dataConclusao ao concluir).
+ * (que preenche dataConclusao ao concluir e a limpa ao reabrir).
  */
 export function useAlterarStatusTarefa(etapaId: string, obraId: string | null) {
   const queryClient = useQueryClient();

@@ -2,27 +2,24 @@
 // Gerencia a OBRA ATIVA (selecionada), persistida no localStorage para
 // fornecer o obraId às Telas 2–6.
 
-import { createContext, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { ObraContext, type ObraContextValue } from "./ObraContextDef";
 
 const STORAGE_KEY = "buildplan.obraAtiva";
 
-export interface ObraContextValue {
-  obraAtivaId: string | null;
-  selecionarObra: (id: string) => void;
-  limparObraAtiva: () => void;
+function lerObraSalva(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY) || null;
+  } catch {
+    return null; // storage indisponível (modo privado/bloqueado)
+  }
 }
 
-export const ObraContext = createContext<ObraContextValue | undefined>(undefined);
-
 export function ObraProvider({ children }: { children: ReactNode }) {
-  const [obraAtivaId, setObraAtivaId] = useState<string | null>(null);
-
-  // Restaura a obra ativa salva ao montar.
-  useEffect(() => {
-    const salvo = localStorage.getItem(STORAGE_KEY);
-    if (salvo) setObraAtivaId(salvo);
-  }, []);
+  // Restaura a obra ativa salva já no primeiro render (inicialização lazy),
+  // sem o render extra de um useEffect + setState.
+  const [obraAtivaId, setObraAtivaId] = useState<string | null>(() => lerObraSalva());
 
   const selecionarObra = useCallback((id: string) => {
     localStorage.setItem(STORAGE_KEY, id);

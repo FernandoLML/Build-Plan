@@ -46,7 +46,6 @@ export function ObraFormDialog({ open, onOpenChange, obra }: ObraFormDialogProps
   // Preenche (edição) ou limpa (criação) o formulário quando o modal abre.
   useEffect(() => {
     if (!open) return;
-    setErro(null);
     reset(
       obra
         ? {
@@ -57,6 +56,15 @@ export function ObraFormDialog({ open, onOpenChange, obra }: ObraFormDialogProps
         : VALORES_VAZIOS,
     );
   }, [open, obra, reset]);
+
+  // Estado local é limpo ao FECHAR (não num effect ao abrir): evita setState
+  // síncrono dentro de useEffect (react-hooks/set-state-in-effect).
+  function handleOpenChange(aberto: boolean) {
+    if (!aberto) {
+      setErro(null);
+    }
+    onOpenChange(aberto);
+  }
 
   const pendente = criar.isPending || atualizar.isPending;
 
@@ -71,7 +79,7 @@ export function ObraFormDialog({ open, onOpenChange, obra }: ObraFormDialogProps
     setErro(null);
     const payload = toObraPayload(values);
     const opcoes = {
-      onSuccess: () => onOpenChange(false),
+      onSuccess: () => handleOpenChange(false),
       onError: (e: unknown) => setErro(extrairErro(e)),
     };
 
@@ -83,7 +91,7 @@ export function ObraFormDialog({ open, onOpenChange, obra }: ObraFormDialogProps
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{obra ? "Editar obra" : "Nova obra"}</DialogTitle>
@@ -123,7 +131,7 @@ export function ObraFormDialog({ open, onOpenChange, obra }: ObraFormDialogProps
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleOpenChange(false)}
               disabled={pendente}
             >
               Cancelar

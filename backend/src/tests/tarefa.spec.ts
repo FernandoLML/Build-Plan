@@ -93,6 +93,122 @@ describe("PUT /api/tarefas/:id — conclusão automática", () => {
   });
 });
 
+// Atualiza uma tarefa (PUT) com o token informado.
+function atualizarTarefa(
+  token: string,
+  id: string,
+  body: Record<string, unknown>,
+): request.Test {
+  return request(app).put(`/api/tarefas/${id}`).set("Authorization", `Bearer ${token}`).send(body);
+}
+
+// Cria usuário + obra + etapa e devolve token/etapaId prontos para uso.
+async function cenario(sufixo = "dono") {
+  const { token } = await criarUsuarioAutenticado(sufixo);
+  const obraId = await criarObra(token);
+  const etapaId = await criarEtapa(token, obraId);
+  return { token, etapaId };
+}
+
+describe("PUT /api/tarefas/:id — ciclo de vida de dataConclusao", () => {
+  it("limpa dataConclusao (null) ao reabrir uma tarefa concluída", async () => {
+    const { token, etapaId } = await cenario();
+    const criada = await criarTarefa(token, etapaId, { titulo: "Alvenaria" });
+    const concluida = await atualizarTarefa(token, criada.body.id, { status: "CONCLUIDA" });
+    expect(concluida.body.dataConclusao).not.toBeNull();
+
+    for (const status of ["EM_ANDAMENTO", "PENDENTE", "BLOQUEADA"]) {
+      await atualizarTarefa(token, criada.body.id, { status: "CONCLUIDA" }).expect(200);
+      const reaberta = await atualizarTarefa(token, criada.body.id, { status });
+      expect(reaberta.status).toBe(200);
+      expect(reaberta.body.status).toBe(status);
+      expect(reaberta.body.dataConclusao).toBeNull();
+    }
+  });
+
+  it("ignora dataConclusao enviada junto com a reabertura (status prevalece)", async () => {
+    const { token, etapaId } = await cenario();
+    const criada = await criarTarefa(token, etapaId, { titulo: "Reboco" });
+    await atualizarTarefa(token, criada.body.id, { status: "CONCLUIDA" }).expect(200);
+
+    const res = await atualizarTarefa(token, criada.body.id, {
+      status: "PENDENTE",
+      dataConclusao: "2026-10-01T12:00:00.000Z",
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.dataConclusao).toBeNull();
+  });
+
+  it("não sobrescreve a dataConclusao ao reenviar CONCLUIDA (edição pelo formulário)", async () => {
+    const { token, etapaId } = await cenario();
+    const criada = await criarTarefa(token, etapaId, { titulo: "Forro" });
+    const concluida = await atualizarTarefa(token, criada.body.id, {
+      status: "CONCLUIDA",
+      dataConclusao: "2026-10-01T12:00:00.000Z",
+    });
+    expect(concluida.body.dataConclusao).toBe("2026-10-01T12:00:00.000Z");
+
+    const editada = await atualizarTarefa(token, criada.body.id, {
+      titulo: "Forro de gesso",
+      status: "CONCLUIDA",
+    });
+    expect(editada.status).toBe(200);
+    expect(editada.body.dataConclusao).toBe("2026-10-01T12:00:00.000Z");
+  });
+
+  it("preenche dataConclusao ao criar tarefa já CONCLUIDA", async () => {
+    const { token, etapaId } = await cenario();
+    const res = await criarTarefa(token, etapaId, { titulo: "Já pronta", status: "CONCLUIDA" });
+    expect(res.status).toBe(201);
+    expect(res.body.dataConclusao).not.toBeNull();
+  });
+});
+
+describe("PUT /api/tarefas/:id — campos anuláveis", () => {
+  it("aceita null para limpar as datas previstas e a descrição", async () => {
+    const { token, etapaId } = await cenario();
+    const criada = await criarTarefa(token, etapaId, {
+      titulo: "Fundação",
+      descricao: "Sapatas corridas",
+      dataInicioPrev: "2026-09-01T12:00:00.000Z",
+      dataFimPrev: "2026-09-10T12:00:00.000Z",
+    });
+    expect(criada.body.dataInicioPrev).not.toBeNull();
+
+    const res = await atualizarTarefa(token, criada.body.id, {
+      descricao: null,
+      dataInicioPrev: null,
+      dataFimPrev: null,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ descricao: null, dataInicioPrev: null, dataFimPrev: null });
+    expect(res.body.titulo).toBe("Fundação"); // campos ausentes são preservados
+  });
+
+  it("dataConclusao null em tarefa concluída volta a ser preenchida (invariante)", async () => {
+    const { token, etapaId } = await cenario();
+    const criada = await criarTarefa(token, etapaId, { titulo: "Cobertura", status: "CONCLUIDA" });
+
+    const res = await atualizarTarefa(token, criada.body.id, { dataConclusao: null });
+    expect(res.status).toBe(200);
+    expect(res.body.dataConclusao).not.toBeNull();
+  });
+
+  it("rejeita null nas datas da criação (400)", async () => {
+    const { token, etapaId } = await cenario();
+    const res = await criarTarefa(token, etapaId, { titulo: "Inválida", dataInicioPrev: null });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejeita data em formato não ISO na edição (400)", async () => {
+    const { token, etapaId } = await cenario();
+    const criada = await criarTarefa(token, etapaId, { titulo: "Datas" });
+    const res = await atualizarTarefa(token, criada.body.id, { dataFimPrev: "10/09/2026" });
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("Ownership de Tarefas — usuário B não acessa tarefa de A", () => {
   it("bloqueia GET, PUT e DELETE em tarefa de outro usuário (404)", async () => {
     const usuarioA = await criarUsuarioAutenticado("a");

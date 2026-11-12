@@ -2,8 +2,8 @@
 // Hook de acesso à obra ativa, com guarda de uso fora do provider.
 
 import { useContext } from "react";
-import { ObraContext } from "./ObraContext";
-import type { ObraContextValue } from "./ObraContext";
+import { ObraContext } from "./ObraContextDef";
+import type { ObraContextValue } from "./ObraContextDef";
 
 export function useObraAtiva(): ObraContextValue {
   const ctx = useContext(ObraContext);

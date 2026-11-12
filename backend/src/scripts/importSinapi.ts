@@ -10,57 +10,28 @@
 //   SINAPI_UF=SC SINAPI_MES=9 SINAPI_ANO=2026 npm run sinapi:import
 //
 // Competência: derivada do nome do arquivo (…YYYYMM… e sufixo UF) quando possível,
-// com override por env (SINAPI_UF / SINAPI_MES / SINAPI_ANO / SINAPI_REGIME).
-//
-// AJUSTE o import do prisma client para o caminho real do seu projeto.
+// com override por env (SINAPI_UF / SINAPI_MES / SINAPI_ANO / SINAPI_REGIME),
+// validada via Zod (ver modules/sinapi/sinapi.import.ts).
 
 import { readFile } from "node:fs/promises";
-import { basename, resolve } from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { parsePlanilhaSinapi } from "../modules/sinapi/sinapi.parser.js";
 import type { RegistroSinapi } from "../modules/sinapi/sinapi.parser.js";
 import { normalizarCodigoSinapi } from "../modules/sinapi/sinapi.codigo.js";
+import {
+  competenciaDoLote,
+  registroSinapiSchema,
+  resolverCompetencia,
+  resolverFonteSinapi,
+} from "../modules/sinapi/sinapi.import.js";
 
 const CHUNK = 1000;
 
-const registroSchema = z.object({
-  codigo: z.string().trim().min(1),
-  descricao: z.string().trim().min(1),
-  unidade: z.string().trim().min(1),
-  precoMediano: z.coerce.number().nonnegative(),
-  uf: z.string().trim().length(2).transform((v) => v.toUpperCase()),
-  mesReferencia: z.coerce.number().int().min(1).max(12),
-  anoReferencia: z.coerce.number().int().min(2000).max(2100),
-  regime: z.enum(["DESONERADO", "NAO_DESONERADO"]).default("NAO_DESONERADO"),
-  tipo: z.enum(["INSUMO", "COMPOSICAO"]).default("INSUMO"),
-});
-
-type Competencia = Pick<RegistroSinapi, "uf" | "mesReferencia" | "anoReferencia" | "regime">;
-
-// Deriva competência do nome do arquivo (ex.: "SINAPI 202609 SC.xlsx") + env.
-function resolverCompetencia(source: string): Competencia {
-  const nome = basename(source);
-  const mAno = /(\d{4})(\d{2})/.exec(nome);
-  const mUf = /\b([A-Z]{2})\b(?=\.[^.]+$)/.exec(nome.toUpperCase());
-
-  const uf = (process.env.SINAPI_UF ?? mUf?.[1] ?? "SC").toUpperCase();
-  const anoReferencia = Number(process.env.SINAPI_ANO ?? mAno?.[1] ?? NaN);
-  const mesReferencia = Number(process.env.SINAPI_MES ?? mAno?.[2] ?? NaN);
-  const regime = (process.env.SINAPI_REGIME ?? "NAO_DESONERADO") as Competencia["regime"];
-
-  if (!Number.isInteger(anoReferencia) || !Number.isInteger(mesReferencia)) {
-    throw new Error(
-      "Competência indefinida. Informe no nome do arquivo (…YYYYMM…) ou via SINAPI_ANO/SINAPI_MES.",
-    );
-  }
-  return { uf, mesReferencia, anoReferencia, regime };
-}
-
 async function obterRegistros(source: string): Promise<RegistroSinapi[]> {
   if (/\.xlsx?$/i.test(source)) {
-    const comp = resolverCompetencia(source);
+    const comp = resolverCompetencia(source, process.env);
     console.log(`[sinapi] Planilha | UF=${comp.uf} ${comp.mesReferencia}/${comp.anoReferencia} (${comp.regime})`);
     return parsePlanilhaSinapi(source, comp);
   }
@@ -74,7 +45,7 @@ async function obterRegistros(source: string): Promise<RegistroSinapi[]> {
   const json = JSON.parse(conteudo);
   if (!Array.isArray(json)) throw new Error("A fonte JSON deve ser um array de registros.");
   return json.map((r, i) => {
-    const parsed = registroSchema.safeParse(r);
+    const parsed = registroSinapiSchema.safeParse(r);
     if (!parsed.success) {
       throw new Error(`Registro inválido no índice ${i}: ${parsed.error.issues[0]?.message}`);
     }
@@ -89,7 +60,8 @@ async function main() {
   const defaultPath = resolve(
     fileURLToPath(new URL("../../prisma/seed/sinapi.sample.json", import.meta.url)),
   );
-  const source = process.env.SINAPI_SOURCE ?? defaultPath;
+  // `||` + trim: SINAPI_SOURCE vazia (ex.: input opcional do workflow) cai na amostra.
+  const source = resolverFonteSinapi(process.env, defaultPath);
   console.log(`[sinapi] Fonte: ${source}`);
 
   const registros = await obterRegistros(source);
@@ -98,8 +70,8 @@ async function main() {
     return;
   }
 
-  // Competência única do lote (todos os registros compartilham a mesma).
-  const { uf, mesReferencia, anoReferencia, regime } = registros[0]!;
+  // Competência única do lote (rejeita JSON com competências misturadas).
+  const { uf, mesReferencia, anoReferencia, regime } = competenciaDoLote(registros);
   console.log(`[sinapi] ${registros.length} registros válidos. Substituindo competência…`);
 
   await prisma.$transaction(

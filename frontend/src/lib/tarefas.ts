@@ -1,7 +1,13 @@
 // Caminho: /frontend/src/lib/tarefas.ts
 // Regras puras de apresentação de tarefas: progresso físico e conversão de datas.
 
-import type { CreateTarefaPayload, StatusTarefa, Tarefa, TarefaFormValues } from "@/types/tarefa";
+import type {
+  CreateTarefaPayload,
+  StatusTarefa,
+  Tarefa,
+  TarefaFormValues,
+  UpdateTarefaPayload,
+} from "@/types/tarefa";
 
 export interface ProgressoFisico {
   total: number;
@@ -37,7 +43,7 @@ export function isoParaDataInput(iso: string | null | undefined): string {
   return iso.slice(0, 10);
 }
 
-/** Monta o payload da API a partir do formulário (campos vazios são omitidos). */
+/** Payload de CRIAÇÃO a partir do formulário (campos vazios são omitidos). */
 export function montarPayloadTarefa(values: TarefaFormValues): CreateTarefaPayload {
   const payload: CreateTarefaPayload = { titulo: values.titulo.trim(), status: values.status };
   const descricao = values.descricao?.trim();
@@ -47,6 +53,21 @@ export function montarPayloadTarefa(values: TarefaFormValues): CreateTarefaPaylo
   const fim = dataInputParaIso(values.dataFimPrev);
   if (fim) payload.dataFimPrev = fim;
   return payload;
+}
+
+/**
+ * Payload de EDIÇÃO a partir do formulário. Diferente da criação, campos
+ * opcionais apagados viram `null` para que o backend os limpe — omiti-los
+ * manteria o valor antigo (a data "voltaria" após salvar).
+ */
+export function montarPayloadEdicaoTarefa(values: TarefaFormValues): UpdateTarefaPayload {
+  return {
+    titulo: values.titulo.trim(),
+    status: values.status,
+    descricao: values.descricao?.trim() || null,
+    dataInicioPrev: dataInputParaIso(values.dataInicioPrev) ?? null,
+    dataFimPrev: dataInputParaIso(values.dataFimPrev) ?? null,
+  };
 }
 
 /** Tarefa atrasada: término previsto já passou e ainda não foi concluída. */

@@ -41,9 +41,10 @@ export const materialFormSchema = z.object({
 });
 export type MaterialFormValues = z.infer<typeof materialFormSchema>;
 
+// `especificacao: null` limpa o campo na edição; ausente mantém o valor.
 export interface UpdateMaterialPayload {
   nome?: string;
-  especificacao?: string;
+  especificacao?: string | null;
   unidade?: string;
   quantidade?: number;
   codigoSinapi?: string;

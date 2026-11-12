@@ -43,7 +43,6 @@ export function MaterialFormDialog({ open, onOpenChange, material, obraId }: Mat
 
   useEffect(() => {
     if (!open) return;
-    setErro(null);
     reset(
       material
         ? {
@@ -55,6 +54,15 @@ export function MaterialFormDialog({ open, onOpenChange, material, obraId }: Mat
         : VAZIO,
     );
   }, [open, material, reset]);
+
+  // Estado local é limpo ao FECHAR (não num effect ao abrir): evita setState
+  // síncrono dentro de useEffect (react-hooks/set-state-in-effect).
+  function handleOpenChange(aberto: boolean) {
+    if (!aberto) {
+      setErro(null);
+    }
+    onOpenChange(aberto);
+  }
 
   const pendente = criar.isPending || atualizar.isPending;
 
@@ -68,26 +76,23 @@ export function MaterialFormDialog({ open, onOpenChange, material, obraId }: Mat
 
   function onSubmit(values: MaterialFormValues) {
     setErro(null);
-    const payload = {
-      nome: values.nome,
-      especificacao: values.especificacao ? values.especificacao : undefined,
-      unidade: values.unidade,
-      quantidade: values.quantidade,
-    };
+    const especificacao = values.especificacao?.trim();
+    const base = { nome: values.nome, unidade: values.unidade, quantidade: values.quantidade };
     const opcoes = {
-      onSuccess: () => onOpenChange(false),
+      onSuccess: () => handleOpenChange(false),
       onError: tratarErro,
     };
 
     if (material) {
-      atualizar.mutate({ id: material.id, payload }, opcoes);
+      // Edição: especificação apagada vira null (para o backend limpar).
+      atualizar.mutate({ id: material.id, payload: { ...base, especificacao: especificacao || null } }, opcoes);
     } else {
-      criar.mutate(payload, opcoes);
+      criar.mutate({ ...base, especificacao: especificacao || undefined }, opcoes);
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{material ? "Editar material" : "Novo material"}</DialogTitle>
@@ -124,7 +129,7 @@ export function MaterialFormDialog({ open, onOpenChange, material, obraId }: Mat
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pendente}>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={pendente}>
               Cancelar
             </Button>
             <Button type="submit" disabled={pendente}>

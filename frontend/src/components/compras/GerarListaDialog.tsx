@@ -1,7 +1,7 @@
 // Caminho: /frontend/src/components/compras/GerarListaDialog.tsx
 // Gera uma lista de compras a partir de uma etapa (POST /api/etapas/:etapaId/lista-compras).
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AxiosError } from "axios";
 import {
   Dialog,
@@ -35,12 +35,15 @@ export function GerarListaDialog({ open, onOpenChange, obraId }: GerarListaDialo
   const [etapaId, setEtapaId] = useState<string | undefined>(undefined);
   const [erro, setErro] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (open) {
+  // Estado local é limpo ao FECHAR (não num effect ao abrir): evita setState
+  // síncrono dentro de useEffect (react-hooks/set-state-in-effect).
+  function handleOpenChange(aberto: boolean) {
+    if (!aberto) {
       setEtapaId(undefined);
       setErro(null);
     }
-  }, [open]);
+    onOpenChange(aberto);
+  }
 
   function handleGerar() {
     if (!etapaId) {
@@ -48,7 +51,7 @@ export function GerarListaDialog({ open, onOpenChange, obraId }: GerarListaDialo
       return;
     }
     gerar.mutate(etapaId, {
-      onSuccess: () => onOpenChange(false),
+      onSuccess: () => handleOpenChange(false),
       onError: (e) =>
         setErro(
           e instanceof AxiosError
@@ -59,7 +62,7 @@ export function GerarListaDialog({ open, onOpenChange, obraId }: GerarListaDialo
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Gerar lista de compras</DialogTitle>
@@ -88,7 +91,7 @@ export function GerarListaDialog({ open, onOpenChange, obraId }: GerarListaDialo
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={gerar.isPending}>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={gerar.isPending}>
               Cancelar
             </Button>
             <Button type="button" onClick={handleGerar} disabled={gerar.isPending}>
