@@ -19,4 +19,12 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // Componentes gerados pelo shadcn/ui exportam também as variantes (cva),
+    // ex.: buttonVariants — padrão da biblioteca, mantido sem alterações.
+    files: ['src/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

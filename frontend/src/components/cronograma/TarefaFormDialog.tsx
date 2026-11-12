@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAtualizarTarefa, useCriarTarefa } from "@/hooks/useTarefas";
-import { isoParaDataInput, montarPayloadTarefa } from "@/lib/tarefas";
+import { isoParaDataInput, montarPayloadEdicaoTarefa, montarPayloadTarefa } from "@/lib/tarefas";
 import {
   STATUS_TAREFA,
   STATUS_TAREFA_LABEL,
@@ -82,16 +82,15 @@ export function TarefaFormDialog({ open, onOpenChange, etapaId, obraId, tarefa }
 
   function onSubmit(values: TarefaFormValues) {
     setErro(null);
-    const payload = montarPayloadTarefa(values);
     const opcoes = {
       onSuccess: () => handleOpenChange(false),
       onError: (e: unknown) =>
         setErro(mensagemErro(e, editando ? "Erro ao salvar tarefa." : "Erro ao criar tarefa.")),
     };
     if (tarefa) {
-      atualizar.mutate({ id: tarefa.id, payload }, opcoes);
+      atualizar.mutate({ id: tarefa.id, payload: montarPayloadEdicaoTarefa(values) }, opcoes);
     } else {
-      criar.mutate(payload, opcoes);
+      criar.mutate(montarPayloadTarefa(values), opcoes);
     }
   }
 

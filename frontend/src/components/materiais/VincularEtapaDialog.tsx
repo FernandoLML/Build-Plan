@@ -52,10 +52,18 @@ export function VincularEtapaDialog({ open, onOpenChange, material, obraId }: Vi
 
   useEffect(() => {
     if (open) {
-      setErro(null);
       reset({ etapaId: "", quantidade: undefined as unknown as number, local: "" });
     }
   }, [open, reset]);
+
+  // Estado local é limpo ao FECHAR (não num effect ao abrir): evita setState
+  // síncrono dentro de useEffect (react-hooks/set-state-in-effect).
+  function handleOpenChange(aberto: boolean) {
+    if (!aberto) {
+      setErro(null);
+    }
+    onOpenChange(aberto);
+  }
 
   function onSubmit(values: VinculoFormValues) {
     if (!material) return;
@@ -70,7 +78,7 @@ export function VincularEtapaDialog({ open, onOpenChange, material, obraId }: Vi
         },
       },
       {
-        onSuccess: () => onOpenChange(false),
+        onSuccess: () => handleOpenChange(false),
         onError: (e) =>
           setErro(
             e instanceof AxiosError
@@ -83,7 +91,7 @@ export function VincularEtapaDialog({ open, onOpenChange, material, obraId }: Vi
 
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Vincular a uma etapa</DialogTitle>
@@ -142,7 +150,7 @@ export function VincularEtapaDialog({ open, onOpenChange, material, obraId }: Vi
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={criar.isPending}>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={criar.isPending}>
               Cancelar
             </Button>
             <Button type="submit" disabled={criar.isPending}>

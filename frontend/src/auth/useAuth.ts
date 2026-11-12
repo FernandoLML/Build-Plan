@@ -2,8 +2,8 @@
 // Hook de acesso ao AuthContext, com guarda de uso fora do provider.
 
 import { useContext } from "react";
-import { AuthContext } from "./AuthContext";
-import type { AuthContextValue } from "./AuthContext";
+import { AuthContext } from "./AuthContextDef";
+import type { AuthContextValue } from "./AuthContextDef";
 
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);

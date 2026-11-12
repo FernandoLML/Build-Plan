@@ -74,7 +74,7 @@ describe("InformarPrecoDialog", () => {
     expect(screen.getByLabelText("Preço unitário (R$)")).toBeInTheDocument();
   });
 
-  it("dispara a busca (com debounce) ao digitar no campo SINAPI", async () => {
+  it("dispara a busca (com debounce) ao digitar no campo SINAPI, com UF e regime", async () => {
     const user = userEvent.setup();
     abrir();
 
@@ -82,7 +82,7 @@ describe("InformarPrecoDialog", () => {
 
     await waitFor(() => expect(sinapiApi.buscar).toHaveBeenCalled());
     expect(sinapiApi.buscar).toHaveBeenCalledWith(
-      expect.objectContaining({ q: "cimento", limit: 8 }),
+      expect.objectContaining({ q: "cimento", uf: "SC", regime: "NAO_DESONERADO", limit: 8 }),
     );
     expect(await screen.findByText(/CIMENTO PORTLAND CP II-32/)).toBeInTheDocument();
   });
@@ -111,5 +111,17 @@ describe("InformarPrecoDialog", () => {
       expect(comprasApi.atualizarItem).toHaveBeenCalledWith("item-1", { precoUnitario: 0.74 }),
     );
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+
+  it("limpa a busca e o erro ao fechar pelo botão Cancelar", async () => {
+    const user = userEvent.setup();
+    const { onOpenChange } = abrir();
+
+    const busca = screen.getByLabelText(/Referência SINAPI/) as HTMLInputElement;
+    await user.type(busca, "cim");
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(busca.value).toBe("");
   });
 });

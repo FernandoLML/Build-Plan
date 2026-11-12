@@ -26,10 +26,13 @@ export const createMaterialSchema = z.object({
   codigoSinapi: z.string().trim().max(30).optional(),
 });
 
-export const updateMaterialSchema = createMaterialSchema.partial().refine(
-  (data) => Object.keys(data).length > 0,
-  { message: "Informe ao menos um campo para atualizar." },
-);
+// Na edição, `especificacao: null` LIMPA o campo; ausente mantém o valor atual.
+export const updateMaterialSchema = createMaterialSchema
+  .extend({ especificacao: z.string().trim().max(1000).nullable() })
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "Informe ao menos um campo para atualizar.",
+  });
 
 // Parâmetros de rota (usados pelos controllers da próxima fase).
 export const obraIdParamSchema = z.object({

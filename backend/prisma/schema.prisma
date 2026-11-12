@@ -261,10 +261,10 @@ model ItemSinapi {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
-  // Chave natural: idempotência do importador (upsert por esta combinação).
+  // Chave natural: o importador substitui o slice (uf+mês+ano+regime) inteiro.
   @@unique([codigo, uf, mesReferencia, anoReferencia, regime])
   // Índices de apoio. A busca textual rápida (GIN/pg_trgm) é criada na migração
-  // SQL dedicada (prisma/migrations/.../sinapi_trgm.sql), pois usa gin_trgm_ops.
+  // 20261101024434_add_item_sinapi (SQL manual), pois usa gin_trgm_ops.
   @@index([codigo])
   @@index([uf])
   // Resolução de preço: código normalizado + competência/UF.

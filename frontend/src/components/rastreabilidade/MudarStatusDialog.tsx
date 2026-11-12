@@ -40,10 +40,18 @@ export function MudarStatusDialog({ open, onOpenChange, vinculo, etapaId, obraId
 
   useEffect(() => {
     if (open) {
-      setErro(null);
       reset({ detalhes: "" });
     }
   }, [open, reset]);
+
+  // Estado local é limpo ao FECHAR (não num effect ao abrir): evita setState
+  // síncrono dentro de useEffect (react-hooks/set-state-in-effect).
+  function handleOpenChange(aberto: boolean) {
+    if (!aberto) {
+      setErro(null);
+    }
+    onOpenChange(aberto);
+  }
 
   const proximo = vinculo ? PROXIMO_STATUS[vinculo.status] : null;
 
@@ -57,7 +65,7 @@ export function MudarStatusDialog({ open, onOpenChange, vinculo, etapaId, obraId
         payload: { status: proximo, detalhes: values.detalhes ? values.detalhes : undefined },
       },
       {
-        onSuccess: () => onOpenChange(false),
+        onSuccess: () => handleOpenChange(false),
         onError: (e) =>
           setErro(
             e instanceof AxiosError
@@ -69,7 +77,7 @@ export function MudarStatusDialog({ open, onOpenChange, vinculo, etapaId, obraId
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Avançar status</DialogTitle>
@@ -95,7 +103,7 @@ export function MudarStatusDialog({ open, onOpenChange, vinculo, etapaId, obraId
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={atualizar.isPending}>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={atualizar.isPending}>
               Cancelar
             </Button>
             <Button type="submit" disabled={atualizar.isPending || !proximo}>

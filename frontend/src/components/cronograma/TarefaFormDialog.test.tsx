@@ -8,7 +8,7 @@ import { AxiosError, AxiosHeaders } from "axios";
 
 import { renderComProviders } from "@/test/utils";
 import { TarefaFormDialog } from "./TarefaFormDialog";
-import { montarPayloadTarefa } from "@/lib/tarefas";
+import { montarPayloadEdicaoTarefa, montarPayloadTarefa } from "@/lib/tarefas";
 import type { Tarefa } from "@/types/tarefa";
 
 vi.mock("@/api/tarefas", () => ({
@@ -43,6 +43,26 @@ describe("montarPayloadTarefa", () => {
     expect(
       montarPayloadTarefa({ titulo: "  Alvenaria ", descricao: "  ", status: "PENDENTE", dataInicioPrev: "", dataFimPrev: "2026-10-01" }),
     ).toEqual({ titulo: "Alvenaria", status: "PENDENTE", dataFimPrev: "2026-10-01T12:00:00.000Z" });
+  });
+});
+
+describe("montarPayloadEdicaoTarefa", () => {
+  it("envia null para descrição e datas apagadas (para o backend limpar)", () => {
+    expect(
+      montarPayloadEdicaoTarefa({ titulo: " Alvenaria ", descricao: "  ", status: "PENDENTE", dataInicioPrev: "", dataFimPrev: undefined }),
+    ).toEqual({ titulo: "Alvenaria", status: "PENDENTE", descricao: null, dataInicioPrev: null, dataFimPrev: null });
+  });
+
+  it("converte as datas preenchidas para ISO", () => {
+    expect(
+      montarPayloadEdicaoTarefa({ titulo: "Laje", descricao: "Térreo", status: "CONCLUIDA", dataInicioPrev: "2026-09-01", dataFimPrev: "2026-09-10" }),
+    ).toEqual({
+      titulo: "Laje",
+      status: "CONCLUIDA",
+      descricao: "Térreo",
+      dataInicioPrev: "2026-09-01T12:00:00.000Z",
+      dataFimPrev: "2026-09-10T12:00:00.000Z",
+    });
   });
 });
 
@@ -113,6 +133,27 @@ describe("TarefaFormDialog", () => {
       }),
     );
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+
+  it("envia null ao apagar as datas e a descrição na edição", async () => {
+    vi.mocked(tarefasApi.atualizar).mockResolvedValue(tarefaExistente);
+    const user = userEvent.setup();
+    abrir(tarefaExistente);
+
+    await user.clear(screen.getByLabelText("Início previsto"));
+    await user.clear(screen.getByLabelText("Término previsto"));
+    await user.clear(screen.getByLabelText("Descrição (opcional)"));
+    await user.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    await waitFor(() =>
+      expect(tarefasApi.atualizar).toHaveBeenCalledWith("t1", {
+        titulo: "Concretagem",
+        descricao: null,
+        status: "EM_ANDAMENTO",
+        dataInicioPrev: null,
+        dataFimPrev: null,
+      }),
+    );
   });
 
   it("exibe a mensagem de erro retornada pela API", async () => {

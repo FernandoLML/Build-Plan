@@ -18,6 +18,7 @@ import { useObraAtiva } from "@/contexts/useObraAtiva";
 import { useDashboard } from "@/hooks/useDashboard";
 import { useEtapas, useVinculosDaObra } from "@/hooks/useMateriais";
 import { formatarMoeda } from "@/lib/format";
+import { calcularProgressoSuprimentos, encontrarEtapaEmExecucao } from "@/lib/suprimentos";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { BarraProgresso } from "@/components/dashboard/BarraProgresso";
 import { StatusBadge } from "@/components/rastreabilidade/StatusBadge";
@@ -31,8 +32,11 @@ interface Alerta {
 export function DashboardPage() {
   const { obraAtivaId } = useObraAtiva();
   const { data, isLoading, isError, refetch } = useDashboard(obraAtivaId);
-  const { data: etapas } = useEtapas(obraAtivaId);
-  const { vinculos } = useVinculosDaObra(obraAtivaId);
+  const { data: etapas, isLoading: carregandoEtapas } = useEtapas(obraAtivaId);
+  const { vinculos, isLoading: carregandoVinculos } = useVinculosDaObra(obraAtivaId);
+  // Enquanto etapas/vínculos carregam, o progresso seria exibido como 0% (dado
+  // errado) — mostra skeleton até ter os dados.
+  const carregandoSuprimentos = carregandoEtapas || carregandoVinculos;
 
   if (!obraAtivaId) {
     return (
@@ -49,22 +53,7 @@ export function DashboardPage() {
 
   const etapasOrdenadas = [...(etapas ?? [])].sort((a, b) => a.ordem - b.ordem);
 
-  // Progresso de SUPRIMENTOS por etapa = insumos aplicados / total de vínculos da etapa.
-  const progressoEtapa = (etapaId: string) => {
-    const vinc = vinculos.filter((v) => v.etapaId === etapaId);
-    const total = vinc.length;
-    const aplicados = vinc.filter((v) => v.status === "APLICADO").length;
-    const pct = total > 0 ? Math.round((aplicados / total) * 100) : 0;
-    return { total, aplicados, pct };
-  };
-
-  const etapaExecucao =
-    etapasOrdenadas.find((e) => {
-      const { pct } = progressoEtapa(e.id);
-      return pct > 0 && pct < 100;
-    }) ??
-    etapasOrdenadas[0] ??
-    null;
+  const etapaExecucao = encontrarEtapaEmExecucao(etapasOrdenadas, vinculos);
   const vinculosExecucao = etapaExecucao
     ? vinculos.filter((v) => v.etapaId === etapaExecucao.id)
     : [];
@@ -77,10 +66,9 @@ export function DashboardPage() {
     if (data.vinculos.porStatus.PREVISTO.quantidade > 0) {
       alertas.push({ cor: "bg-rose-400", valor: data.vinculos.porStatus.PREVISTO.quantidade, texto: "material(is) previsto(s) ainda não recebido(s)" });
     }
-    if (data.vinculos.porStatus.APLICADO.quantidade > 0) {
-      alertas.push({ cor: "bg-emerald-400", valor: data.vinculos.porStatus.APLICADO.quantidade, texto: "material(is) já aplicado(s)" });
-    }
   }
+  // Informativo (não é ponto de atenção): exibido à parte da lista de alertas.
+  const materiaisAplicados = data?.vinculos.porStatus.APLICADO.quantidade ?? 0;
 
   return (
     <div className="space-y-6">
@@ -172,7 +160,13 @@ export function DashboardPage() {
             <CardTitle className="text-base text-slate-100">Suprimentos por etapa</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
-            {etapasOrdenadas.length === 0 ? (
+            {carregandoSuprimentos ? (
+              <div data-testid="suprimentos-carregando" className="space-y-5">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-9 w-full" />
+                ))}
+              </div>
+            ) : etapasOrdenadas.length === 0 ? (
               <div className="py-6 text-center">
                 <p className="text-sm text-slate-500">Nenhuma etapa cadastrada nesta obra.</p>
                 <Button asChild variant="outline" size="sm" className="mt-3">
@@ -181,14 +175,14 @@ export function DashboardPage() {
               </div>
             ) : (
               etapasOrdenadas.map((etapa) => {
-                const { total, aplicados, pct } = progressoEtapa(etapa.id);
+                const { total, aplicados, percentual } = calcularProgressoSuprimentos(vinculos, etapa.id);
                 return (
                   <BarraProgresso
                     key={etapa.id}
                     label={etapa.nome}
-                    percentual={pct}
-                    detalhe={`${aplicados} de ${total} insumos aplicados • ${pct}%`}
-                    cor={total > 0 && pct === 100 ? "bg-emerald-500" : "bg-indigo-600"}
+                    percentual={percentual}
+                    detalhe={`${aplicados} de ${total} insumos aplicados • ${percentual}%`}
+                    cor={total > 0 && percentual === 100 ? "bg-emerald-500" : "bg-indigo-600"}
                   />
                 );
               })
@@ -218,6 +212,15 @@ export function DashboardPage() {
                 ))}
               </ul>
             )}
+            {materiaisAplicados > 0 && (
+              <p className="mt-4 flex items-center gap-2 border-t border-slate-800 pt-4 text-sm text-slate-400">
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                <span>
+                  <span className="font-semibold tabular-nums text-slate-200">{materiaisAplicados}</span> material(is) já
+                  aplicado(s)
+                </span>
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -238,7 +241,9 @@ export function DashboardPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {!etapaExecucao ? (
+          {carregandoSuprimentos ? (
+            <Skeleton className="h-24 w-full" />
+          ) : !etapaExecucao ? (
             <p className="text-sm text-slate-500">Nenhuma etapa em execução.</p>
           ) : vinculosExecucao.length === 0 ? (
             <p className="text-sm text-slate-500">Nenhum material vinculado a esta etapa.</p>

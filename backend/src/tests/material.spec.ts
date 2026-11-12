@@ -133,6 +133,20 @@ describe("GET/PUT/DELETE /api/materiais/:id", () => {
     expect(String(res.body.quantidade)).toBe("25");
   });
 
+  it("limpa a especificação ao receber null na edição (200)", async () => {
+    const { token } = await criarUsuarioAutenticado("dono");
+    const obraId = await criarObra(token);
+    const materialId = await criarMaterial(token, obraId, { especificacao: "Saco 50 kg" });
+
+    const res = await request(app)
+      .put(`/api/materiais/${materialId}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ especificacao: null });
+
+    expect(res.status).toBe(200);
+    expect(res.body.especificacao).toBeNull();
+  });
+
   it("remove material (204)", async () => {
     const { token } = await criarUsuarioAutenticado("dono");
     const obraId = await criarObra(token);

@@ -49,7 +49,14 @@ export interface CreateTarefaPayload {
 }
 
 // PUT /api/tarefas/:id — parcial, mas o backend exige ao menos um campo.
-export type UpdateTarefaPayload = Partial<CreateTarefaPayload>;
+// `null` LIMPA o campo (ex.: data apagada no formulário); ausente mantém o valor.
+export interface UpdateTarefaPayload
+  extends Partial<Omit<CreateTarefaPayload, "descricao" | "dataInicioPrev" | "dataFimPrev" | "dataConclusao">> {
+  descricao?: string | null;
+  dataInicioPrev?: string | null;
+  dataFimPrev?: string | null;
+  dataConclusao?: string | null;
+}
 
 // ---- Formulário (inputs type="date" produzem "YYYY-MM-DD" ou "") ----
 const dataOpcional = z

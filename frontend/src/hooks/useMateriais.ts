@@ -91,7 +91,7 @@ export function useVinculosDaObra(obraId: string | null): {
   vinculos: VinculoMaterialEtapa[];
   isLoading: boolean;
 } {
-  const { data: etapas } = useEtapas(obraId);
+  const { data: etapas, isLoading: carregandoEtapas } = useEtapas(obraId);
   const results = useQueries({
     queries: (etapas ?? []).map((etapa) => ({
       queryKey: ["vinculos", etapa.id],
@@ -102,7 +102,8 @@ export function useVinculosDaObra(obraId: string | null): {
   const vinculos = results.flatMap(
     (r) => (r.data as VinculoMaterialEtapa[] | undefined) ?? [],
   );
-  const isLoading = results.some((r) => r.isLoading);
+  // Enquanto as etapas carregam ainda não há queries de vínculos: também é "carregando".
+  const isLoading = carregandoEtapas || results.some((r) => r.isLoading);
   return { vinculos, isLoading };
 }
 
