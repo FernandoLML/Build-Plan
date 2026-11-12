@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AxiosError } from "axios";
-import { FileText, Loader2, UploadCloud } from "lucide-react";
+import { Download, FileText, Loader2, UploadCloud } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -13,6 +13,7 @@ import { usePreviewMemorial, useImportarMemorial } from "@/hooks/useMemorial";
 import { MemorialDropzone } from "@/components/memorial/MemorialDropzone";
 import { TabelaMateriaisExtraidos } from "@/components/memorial/TabelaMateriaisExtraidos";
 import { MemorialStepper } from "@/components/memorial/MemorialStepper";
+import { baixarTemplateMemorial } from "@/lib/memorialTemplate";
 
 function extrairMensagem(e: unknown, padrao: string): string {
   if (e instanceof AxiosError) {
@@ -104,7 +105,18 @@ export function MemorialPage() {
         {/* Coluna esquerda — entrada */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base text-slate-100">Inserir documento</CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-base text-slate-100">Inserir documento</CardTitle>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={baixarTemplateMemorial}
+                title="Modelo com o cabeçalho esperado e linhas de exemplo"
+              >
+                <Download className="mr-1 h-3.5 w-3.5" /> Baixar Template (.csv)
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <MemorialDropzone onArquivoLido={handleArquivo} onErro={setErro} disabled={preview.isPending} />

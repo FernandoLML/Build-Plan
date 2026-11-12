@@ -5,6 +5,7 @@ import { Link, NavLink } from "react-router-dom";
 import {
   Boxes,
   Building2,
+  CalendarRange,
   ClipboardList,
   FileText,
   LayoutDashboard,
@@ -26,6 +27,7 @@ interface NavItem {
 const NAV_ITENS: NavItem[] = [
   { to: "/obras", label: "Obras", icon: Building2 },
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/cronograma", label: "Cronograma", icon: CalendarRange },
   { to: "/materiais", label: "Materiais", icon: Package },
   { to: "/compras", label: "Compras", icon: ShoppingCart },
   { to: "/rastreabilidade", label: "Rastreabilidade", icon: ClipboardList },

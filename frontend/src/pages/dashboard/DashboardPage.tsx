@@ -136,11 +136,40 @@ export function DashboardPage() {
         )}
       </div>
 
+      {/* 1b) Progresso físico (tarefas concluídas / totais — M3) */}
+      {data && (
+        <Card data-testid="dashboard-progresso-fisico">
+          <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center">
+            <div className="flex-1">
+              <BarraProgresso
+                label="Progresso físico da obra"
+                percentual={data.progressoTarefas.percentual}
+                detalhe={
+                  data.progressoTarefas.total === 0
+                    ? "Sem tarefas cadastradas • 0%"
+                    : `${data.progressoTarefas.concluidas} de ${data.progressoTarefas.total} tarefas concluídas • ${data.progressoTarefas.percentual}%`
+                }
+                cor={
+                  data.progressoTarefas.total > 0 && data.progressoTarefas.percentual === 100
+                    ? "bg-emerald-500"
+                    : "bg-indigo-600"
+                }
+              />
+            </div>
+            <Button asChild variant="ghost" size="sm" className="text-slate-400 hover:text-slate-100">
+              <Link to="/cronograma">
+                Abrir cronograma <ExternalLink className="ml-1 h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* 2) Split: progresso por etapa + alertas */}
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base text-slate-100">Progresso por etapa</CardTitle>
+            <CardTitle className="text-base text-slate-100">Suprimentos por etapa</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             {etapasOrdenadas.length === 0 ? (
