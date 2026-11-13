@@ -23,5 +23,22 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     css: false,
+    // Cobertura (npm run test:coverage): gera coverage/lcov.info para o SonarCloud.
+    // Exclui testes, infraestrutura de teste, primitivos shadcn (components/ui),
+    // bootstrap da aplicação e arquivos só de tipos.
+    coverage: {
+      provider: "v8",
+      reporter: ["text-summary", "lcov"],
+      reportsDirectory: "coverage",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/**/*.test.{ts,tsx}",
+        "src/test/**",
+        "src/components/ui/**",
+        "src/main.tsx",
+        "src/vite-env.d.ts",
+        "src/types/**",
+      ],
+    },
   },
 });
