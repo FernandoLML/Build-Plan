@@ -48,7 +48,7 @@ flowchart LR
 
 | Ferramenta | Backend | Frontend | Observações |
 |---|---|---|---|
-| **Node.js** | 20.x (CI) | 20.x (CI) | Não há `engines` nem `.nvmrc`; a versão é fixada apenas nos workflows. O importador SINAPI depende do `fetch` global (Node ≥ 18). |
+| **Node.js** | 22.x LTS (CI) | 22.x LTS (CI) | Não há `engines` nem `.nvmrc`; a versão é fixada apenas nos workflows (Node 20 saiu de suporte em 04/2026). O importador SINAPI depende do `fetch` global (Node ≥ 18). |
 | **Módulos** | ESM (`"type": "module"`) | ESM | Backend usa `module/moduleResolution: NodeNext` → **imports internos com sufixo `.js`**. |
 | **TypeScript** | `^5.6.0` | `~6.0.2` | Versões diferentes entre pacotes. Backend: `strict` + `noUnusedLocals/Parameters`, `noImplicitReturns`, alvo ES2022. Frontend: `moduleResolution: bundler`, `verbatimModuleSyntax`, `erasableSyntaxOnly`, alvo ES2023. |
 | **Execução dev** | `tsx watch` (`^4.23`) | Vite `^8.3` (porta 5173) | Backend compila para `dist/` com `tsc` em produção. |
@@ -504,14 +504,23 @@ Convenções: queries dependentes de obra usam `enabled: !!obraId`; mutações i
 
 | Workflow | Gatilho | Passos | Banco |
 |---|---|---|---|
-| **`ci.yml`** — job `backend` | push em `main`/`develop`, **todo** `pull_request` e `workflow_dispatch` (sem filtro de pastas) | `npm ci` → `prisma generate` → `lint` → `tsc --noEmit` → `prisma migrate deploy` → `test:ci` (cobertura) → reescreve `SF:` do lcov para `backend/…` → artefato `coverage-backend` | Service `postgres:16-alpine`, `schema=public` |
-| **`ci.yml`** — job `frontend` | idem | `npm ci` → `lint` → `tsc --noEmit` → `test:coverage` → reescreve `SF:` para `frontend/…` → artefato `coverage-frontend` → `build` | — |
-| **`ci.yml`** — job `sonarcloud` | após `backend` e `frontend` | checkout com `fetch-depth: 0` → baixa os dois lcov → `SonarSource/sonarqube-scan-action@v5` (config em `sonar-project.properties`). Sem o secret `SONAR_TOKEN`, emite *warning* e não analisa | — |
-| **`sinapi-import.yml`** | `cron: "0 6 5 * *"` (dia 5, 06:00 UTC) + `workflow_dispatch` com input `source` | `npm ci` → `prisma generate` → `npm run sinapi:import` | `secrets.DATABASE_URL` (produção); `concurrency` sem cancelamento |
+| **`ci.yml`** — job `backend` | push em `main`/`develop`, **todo** `pull_request` e `workflow_dispatch` (sem filtro de pastas) | `npm ci --ignore-scripts` → `npm rebuild bcrypt @prisma/engines` → `prisma:generate` → `lint` → `typecheck` → `prisma:deploy` → `test:ci` (cobertura) → reescreve `SF:` do lcov para `backend/…` → artefato `coverage-backend` | Service `postgres:16-alpine`, `schema=public` |
+| **`ci.yml`** — job `frontend` | idem | `npm ci --ignore-scripts` → `lint` → `typecheck` → `test:coverage` → reescreve `SF:` para `frontend/…` → artefato `coverage-frontend` → `build` | — |
+| **`ci.yml`** — job `sonarcloud` | após `backend` e `frontend` | checkout com `fetch-depth: 0` → baixa os dois lcov → `SonarSource/sonarqube-scan-action` v8.4.1 (config em `sonar-project.properties`, com `sonar.qualitygate.wait=true`: **o job falha se o Quality Gate reprovar**). Sem o secret `SONAR_TOKEN`, emite *warning* e não analisa | — |
+| **`sinapi-import.yml`** | `cron: "0 6 5 * *"` (dia 5, 06:00 UTC) + `workflow_dispatch` com input `source` | `npm ci --ignore-scripts` → `npm rebuild @prisma/engines` → `prisma:generate` → `npm run sinapi:import` | `secrets.DATABASE_URL` (produção); `concurrency` sem cancelamento |
 
-Todos usam Node 20.x com cache npm por lockfile; o `ci.yml` cancela execuções anteriores do mesmo ref (`concurrency`).
+Todos usam Node 22.x com cache npm por lockfile; o `ci.yml` cancela execuções anteriores do mesmo ref (`concurrency`).
 
-**SonarCloud (`sonar-project.properties` na raiz)** — `sources` e `tests` apontam para `backend/src` e `frontend/src` (testes colocados, separados por `sonar.test.inclusions`: `*.spec.ts`, `*.test.ts[x]`, `backend/src/tests/**`, `frontend/src/test/**`). Excluídos da análise: `node_modules`, `dist`/`build`, `coverage`, `prisma/migrations` e `frontend/src/components/ui/**`. `sonar.javascript.lcov.reportPaths` lê os dois lcov; `sonar.coverage.exclusions` replica as exclusões do Jest/Vitest. Exige **Automatic Analysis desligada** no SonarCloud.
+**Hardening de supply chain (regras `githubactions` do SonarCloud, PR #24):**
+
+- toda action é fixada por **SHA completo** (tag no comentário); atualizar trocando SHA + comentário juntos;
+- `npm ci --ignore-scripts`: nenhum lifecycle script de dependência roda na instalação. Os únicos necessários são reexecutados de forma nominal com `npm rebuild` — `bcrypt` (binário nativo) e `@prisma/engines` (engines). `esbuild`/`unrs-resolver` não precisam: o binário vem como dependência opcional da plataforma;
+- **nenhum `npx`** nos workflows (pode baixar pacotes sob demanda): os comandos usam scripts do `package.json` (`typecheck`, `prisma:generate`, `prisma:deploy`), que só executam binários do lockfile;
+- `actions/checkout` com `persist-credentials: false`.
+
+> Ao adicionar uma dependência com install script obrigatório, inclua-a no `npm rebuild` do workflow (liste com `npm query ':attr(scripts, [install]), :attr(scripts, [postinstall])'`).
+
+**SonarCloud (`sonar-project.properties` na raiz)** — o SonarCloud usa o **novo modelo de escopo**: analisa o repositório inteiro e ignora `sonar.sources`/`sonar.tests`/`sonar.test.inclusions` (o scanner avisa "configured but have no effect"). O escopo é definido só por `sonar.exclusions`: `node_modules`, `dist`/`build`, `coverage`, `backend/prisma/**` (migrations e seed — a planilha `.xlsx` gerava warning de encoding), `frontend/public/**`, `frontend/src/components/ui/**` e os testes (`*.spec.ts`, `*.test.ts[x]`, `backend/src/tests/**`, `frontend/src/test/**`). Os workflows em `.github/` também são analisados (regras de segurança de CI). `sonar.javascript.lcov.reportPaths` lê os dois lcov; `sonar.coverage.exclusions` replica as exclusões do Jest/Vitest e tira da cobertura os arquivos de configuração das ferramentas (`*.config.ts/js`). Exige **Automatic Analysis desligada** no SonarCloud.
 
 > Por que um workflow só: o SonarCloud precisa dos dois `lcov.info` em toda análise. Com os antigos `backend-ci.yml`/`frontend-ci.yml` filtrados por pasta, um PR só de frontend reportaria o backend com 0% de cobertura.
 
@@ -695,4 +704,5 @@ npm run build            # tsc --noEmit && vite build
 | 2026-11-01 | `19e6936` (PR #19) + trabalho não commitado de `feature-sinapi-fase-2` | Importador com planilha oficial e replace por competência, parser e `xlsx`; lista flutuante no `InformarPrecoDialog`; contagem de testes; novas variáveis de ambiente; achados 14–18. Conferido com `tsc --noEmit` no backend e testes completos: backend 101/101, frontend 21/21. |
 | 2026-11-12 | `c0158be` (PR #22) + `fix-debitos-tecnicos-n2` | Incorpora PRs #20–#22 (parser/planilha, precificação automática, enum `OrigemPreco`, `codigoNormalizado`, Cronograma). Débitos da N2: N+1 na precificação, importador com Zod e fallback de `SINAPI_SOURCE`, datas anuláveis e ciclo de `dataConclusao`, `uf`/`regime` no autocomplete, ESLint zerado, testes de Dashboard/suprimentos/material, limpeza de comentários. Marcadores 🚧 removidos. Conferido: `tsc --noEmit` (back e front), backend 135/135, frontend 96/96, `npm run lint` com 0 problemas. |
 | 2026-11-12 | `6912b19` (PR #23) + `chore-sonarqube-quality` | Etapa 3: cobertura lcov (Jest e `@vitest/coverage-v8`), ESLint no backend, `ci.yml` unificado (lint · tsc · testes com cobertura · build · SonarCloud) no lugar de `backend-ci.yml`/`frontend-ci.yml`, `sonar-project.properties`. Linha de base de cobertura: backend 92,3% / frontend 50,6% (linhas). |
+| 2026-11-12 | PR #24 (Quality Gate) | Correção dos 11 apontamentos de segurança do SonarCloud (todos em `ci.yml`): `npm ci --ignore-scripts` + `npm rebuild` nominal, fim do `npx`, actions fixadas por SHA (scan-action v5 → v8.4.1, que tinha vulnerabilidade conhecida). Node 22 no CI, escopo do Sonar migrado para exclusões (novo modelo de escopo), `sonar.qualitygate.wait=true`. Mesmo hardening no `sinapi-import.yml`. |
 
