@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
+    "lint": "eslint .",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -15,7 +16,9 @@
     "pretest": "npm run test:migrate",
     "test": "dotenv -e .env.test -- cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
     "test:watch": "dotenv -e .env.test -- cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand --watch",
-    "test:ci": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand --ci",
+    "pretest:coverage": "npm run test:migrate",
+    "test:coverage": "dotenv -e .env.test -- cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand --coverage",
+    "test:ci": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand --ci --coverage",
     "sinapi:import": "tsx src/scripts/importSinapi.ts"
   },
   "keywords": [
@@ -37,6 +40,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@jest/globals": "^29.7.0",
     "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.17",
@@ -47,6 +51,8 @@
     "@types/supertest": "^6.0.3",
     "cross-env": "^7.0.3",
     "dotenv-cli": "^7.4.4",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
     "jest": "^30.4.2",
     "prisma": "^6.0.0",
     "supertest": "^7.2.2",
@@ -54,6 +60,7 @@
     "ts-node": "^10.9.2",
     "tsx": "^4.23.15",
     "typescript": "^5.6.0",
+    "typescript-eslint": "^8.72.2",
     "xlsx": "^0.18.5"
   }
 }

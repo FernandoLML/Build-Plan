@@ -1,6 +1,6 @@
 # Build-Plan — Raio-X Arquitetural e Técnico
 
-> **Documento vivo** · Última revisão em 2026-11-12, com base no `main` (commit `c0158be`, pós-merge do PR #22) **mais** a branch `fix-debitos-tecnicos-n2` (Etapa 2 — débitos técnicos da N2, preparação para o SonarCloud). Ver [Histórico de revisões](#histórico-de-revisões).
+> **Documento vivo** · Última revisão em 2026-11-12, com base no `main` (commit `6912b19`, pós-merge do PR #23 — débitos técnicos da N2) **mais** a branch `chore-sonarqube-quality` (Etapa 3 — cobertura, lint no CI e SonarCloud). Ver [Histórico de revisões](#histórico-de-revisões).
 > Objetivo: consolidar decisões, padrões e convenções dos marcos M1–M7 + SINAPI (catálogo, importador, precificação automática) + Cronograma/Tarefas e servir de mapa para as próximas fases.
 > Documentos relacionados: [RFC.md](RFC.md) · [marco-m4-consolidacao.md](marco-m4-consolidacao.md) · [marco-m5-consolidacao.md](marco-m5-consolidacao.md) · [frontend-consolidacao.md](frontend-consolidacao.md) · [registro-comparacao.md](registro-comparacao.md)
 
@@ -15,7 +15,7 @@
 | **Persistência** | PostgreSQL 16 via Prisma 6. 10 models, 7 enums, 4 migrações. Busca textual SINAPI com `pg_trgm` + índice GIN; correspondência de código via `codigoNormalizado`. |
 | **Frontend** | SPA React 19 + Vite 8, TanStack Query 5 para estado de servidor, Context API para sessão e obra ativa, shadcn/ui (Radix) + Tailwind 3. |
 | **Testes** | Backend: Jest + Supertest contra **banco real** (sem mocks de Prisma) — 14 suítes / 135 casos. Frontend: Vitest + Testing Library em jsdom, com mocks da camada `api/` — 17 arquivos / 96 casos. ESLint do frontend zerado. |
-| **CI/CD** | 3 workflows GitHub Actions: backend CI, frontend CI e importação mensal agendada do SINAPI. |
+| **CI/CD** | 2 workflows GitHub Actions: `ci.yml` (lint · typecheck · testes com cobertura no backend e no frontend + análise SonarCloud) e a importação mensal agendada do SINAPI. |
 | **Domínio** | Usuário → Obras → Etapas → Tarefas (cronograma e progresso físico); Materiais (catálogo por obra) vinculados a Etapas com máquina de estados auditada; Listas de Compras como snapshot, precificadas automaticamente pelo catálogo SINAPI. |
 
 ```mermaid
@@ -54,8 +54,8 @@ flowchart LR
 | **Execução dev** | `tsx watch` (`^4.23`) | Vite `^8.3` (porta 5173) | Backend compila para `dist/` com `tsc` em produção. |
 | **Bundler** | — (`tsc`) | Vite 8 + `@vitejs/plugin-react` 6 | `build.cssMinify: "esbuild"` (contorna falsos positivos do lightningcss). Alias `@` → `src/`. |
 | **ORM** | Prisma `^6.0.0` (`prisma` + `@prisma/client`) | — | `prisma.config.ts` define schema e pasta de migrações; datasource lê `DATABASE_URL`. |
-| **Test runner** | Jest `^30.4` + ts-jest `^29.4` (preset ESM) + Supertest `^7.2` | Vitest `^5.0` + jsdom `^29` | Backend roda Jest com `NODE_OPTIONS=--experimental-vm-modules`; `isolatedModules: true` no `tsconfig` (exigência do ts-jest com `NodeNext`, elimina o aviso TS151002). O type-check fica com o `tsc --noEmit` do CI. |
-| **Lint** | — | ESLint 10 (flat config) + typescript-eslint, react-hooks, react-refresh | **0 problemas** no frontend desde `fix-debitos-tecnicos-n2`. `components/ui/**` (shadcn) desliga `react-refresh/only-export-components`, pois exporta `*Variants`. Backend não possui ESLint configurado. |
+| **Test runner** | Jest `^30.4` + ts-jest `^29.4` (preset ESM) + Supertest `^7.2`; cobertura pelo istanbul embutido no Jest | Vitest `^5.0` + jsdom `^29`; cobertura com `@vitest/coverage-v8` | Backend roda Jest com `NODE_OPTIONS=--experimental-vm-modules`; `isolatedModules: true` no `tsconfig` (exigência do ts-jest com `NodeNext`, elimina o aviso TS151002). O type-check fica com o `tsc --noEmit` do CI. |
+| **Lint** | ESLint 10 (flat config) + typescript-eslint, globals Node (`eslint.config.js`) | ESLint 10 (flat config) + typescript-eslint, react-hooks, react-refresh | **0 problemas** nos dois pacotes; ambos rodam no CI. `components/ui/**` (shadcn) desliga `react-refresh/only-export-components`, pois exporta `*Variants`. |
 | **Banco local** | Docker Compose: `postgres:16-alpine` + `pgadmin4` | — | Variáveis `POSTGRES_*`/`PGADMIN_*` vêm de um `.env` na raiz (não versionado). |
 
 ### 1.2 Backend — bibliotecas de runtime
@@ -100,7 +100,7 @@ flowchart LR
 |---|---|---|
 | Desenvolvimento | `buildplan_db`, `schema=public` | `backend/.env` (modelo em `.env.example`) |
 | Testes locais | mesmo servidor, **`schema=test_buildplan`** | `backend/.env.test` (não versionado) |
-| CI `backend-ci.yml` | `buildplan_test`, `schema=public` | variáveis do job |
+| CI `ci.yml` (job `backend`) | `buildplan_test`, `schema=public` | variáveis do job |
 | Produção (import SINAPI) | `secrets.DATABASE_URL` | workflow `sinapi-import.yml` |
 
 **Extensões:**
@@ -478,8 +478,8 @@ Convenções: queries dependentes de obra usam `enabled: !!obraId`; mutações i
 | Isolamento | `.env.test` aponta para o schema `test_buildplan`; `setup.ts` executa `resetDatabase()` (**TRUNCATE … RESTART IDENTITY CASCADE** de todas as tabelas de domínio) em `beforeEach` e `prisma.$disconnect()` em `afterAll`. |
 | Concorrência | `--runInBand` + `maxWorkers: 1` (banco compartilhado); `testTimeout: 20000`; `clearMocks: true`. |
 | Fixtures | `tests/helpers/auth.helper.ts`: `criarUsuarioAutenticado()` (registra via API com e-mail único e devolve token), `criarObra`, `criarEtapa`, `criarMaterial`. Cenários multiusuário verificam isolamento (404 para recurso alheio). |
-| Scripts | `test` (carrega `.env.test`; `pretest` migra), `test:watch`, `test:ci` (usa env do job, flag `--ci`). |
-| Cobertura | **Não configurada** (sem `collectCoverage`/thresholds). |
+| Scripts | `test` (carrega `.env.test`; `pretest` migra), `test:watch`, `test:coverage` (igual a `test` + `--coverage`; `pretest:coverage` migra), `test:ci` (usa env do job, flags `--ci --coverage`), `lint`. |
+| Cobertura | `collectCoverageFrom: src/**/*.ts` exceto specs, `src/tests/**`, `server.ts`, `scripts/**` e `types/**`. Reporters `text-summary` + `lcov` → `backend/coverage/lcov.info`. Sem thresholds locais (o Quality Gate do SonarCloud é o critério). Linha de base em 2026-11-12: **92,3% linhas**, 80,9% branches. |
 | Suítes | **14 arquivos `*.spec.ts` (135 casos)**: auth, obra, etapa, tarefa, material, vínculo, lista-compras, memorial, export, dashboard, log (em `src/tests/`); sinapi, sinapi.parser e sinapi.import (em `src/modules/sinapi/`). |
 
 > Convenção: **todo teste do backend deve terminar em `.spec.ts`** — é o único padrão reconhecido pelo `testMatch`. A suíte SINAPI foi renomeada de `.test.ts` para `.spec.ts` por esse motivo. Ela semeia e limpa `ItemSinapi` em `beforeAll`/`afterAll`; o `resetDatabase()` global não trunca essa tabela, então o seed persiste entre os casos da suíte.
@@ -497,24 +497,29 @@ Convenções: queries dependentes de obra usam `enabled: !!obraId`; mutações i
 | Render | `renderComProviders(ui, { rota, client })` (`test/utils.tsx`): `QueryClient` novo por teste (`retry: false`, `gcTime: 0`) + `MemoryRouter`. |
 | Mocks | `vi.mock` na **fronteira `@/api/*`** e em `@/contexts/useObraAtiva` / `./useAuth`; nunca no Axios. Interação via `@testing-library/user-event`. |
 | Suítes | **17 arquivos (96 casos)**: contextos (`AuthContext`, `ProtectedRoute`, `ObraContext`); páginas (`DashboardPage`, `CronogramaPage`, `ComprasPage`, `RastreabilidadePage`, `MemorialPage`); componentes (`InformarPrecoDialog`, `MaterialFormDialog`, `TarefaFormDialog`, `EtapaTarefasCard`); hooks (`useTarefas`); regras puras em `lib/` (`tarefas`, `suprimentos`, `sinapi`, `memorialTemplate`). |
-| Cobertura | Não configurada. |
+| Cobertura | `test:coverage` (`vitest run --coverage`), provider **v8**; `include: src/**/*.{ts,tsx}`, exclui testes, `src/test/**`, `components/ui/**` (shadcn), `main.tsx`, `vite-env.d.ts` e `types/**`. Reporters `text-summary` + `lcov` → `frontend/coverage/lcov.info`. Linha de base em 2026-11-12: **50,6% linhas**, 49,2% branches (páginas de Obras, Materiais e auth ainda sem teste). |
 | Execução local no Windows | Rodar `npm test` pelo PowerShell/terminal do VS Code. No Git Bash, `npx vitest run <arquivo>` pode falhar com *"failed to find the current suite"* (divergência `C:/` × `c:/` no caminho do drive), inclusive no código original. |
 
 ### 5.3 Pipelines (GitHub Actions)
 
 | Workflow | Gatilho | Passos | Banco |
 |---|---|---|---|
-| **`backend-ci.yml`** (M7) | push/PR em `main`, `develop`, `feature-*`, `feature/**` — **somente com mudanças em `backend/**`** | `npm ci` → `prisma generate` → `prisma migrate deploy` → `tsc --noEmit` → `npm run test:ci` | Service `postgres:16-alpine`, `schema=public` |
-| **`frontend-ci.yml`** (M7) | idem, filtrado por `frontend/**` | `npm ci` → `tsc --noEmit` → `npm test` → `npm run build` | — |
+| **`ci.yml`** — job `backend` | push em `main`/`develop`, **todo** `pull_request` e `workflow_dispatch` (sem filtro de pastas) | `npm ci` → `prisma generate` → `lint` → `tsc --noEmit` → `prisma migrate deploy` → `test:ci` (cobertura) → reescreve `SF:` do lcov para `backend/…` → artefato `coverage-backend` | Service `postgres:16-alpine`, `schema=public` |
+| **`ci.yml`** — job `frontend` | idem | `npm ci` → `lint` → `tsc --noEmit` → `test:coverage` → reescreve `SF:` para `frontend/…` → artefato `coverage-frontend` → `build` | — |
+| **`ci.yml`** — job `sonarcloud` | após `backend` e `frontend` | checkout com `fetch-depth: 0` → baixa os dois lcov → `SonarSource/sonarqube-scan-action@v5` (config em `sonar-project.properties`). Sem o secret `SONAR_TOKEN`, emite *warning* e não analisa | — |
 | **`sinapi-import.yml`** | `cron: "0 6 5 * *"` (dia 5, 06:00 UTC) + `workflow_dispatch` com input `source` | `npm ci` → `prisma generate` → `npm run sinapi:import` | `secrets.DATABASE_URL` (produção); `concurrency` sem cancelamento |
 
-Todos usam Node 20.x com cache npm por lockfile e `concurrency` por ref nos CIs M7.
+Todos usam Node 20.x com cache npm por lockfile; o `ci.yml` cancela execuções anteriores do mesmo ref (`concurrency`).
+
+**SonarCloud (`sonar-project.properties` na raiz)** — `sources` e `tests` apontam para `backend/src` e `frontend/src` (testes colocados, separados por `sonar.test.inclusions`: `*.spec.ts`, `*.test.ts[x]`, `backend/src/tests/**`, `frontend/src/test/**`). Excluídos da análise: `node_modules`, `dist`/`build`, `coverage`, `prisma/migrations` e `frontend/src/components/ui/**`. `sonar.javascript.lcov.reportPaths` lê os dois lcov; `sonar.coverage.exclusions` replica as exclusões do Jest/Vitest. Exige **Automatic Analysis desligada** no SonarCloud.
+
+> Por que um workflow só: o SonarCloud precisa dos dois `lcov.info` em toda análise. Com os antigos `backend-ci.yml`/`frontend-ci.yml` filtrados por pasta, um PR só de frontend reportaria o backend com 0% de cobertura.
 
 **Pontos de atenção do CI**
 
-1. **Workflow legado removido:** o `ci.yml` (M2) duplicava a suíte do `backend-ci.yml` e rodava sem filtro de paths; foi excluído em 2026-11-01.
-2. **Script de teste no CI:** o `backend-ci.yml` usa `npm run test:ci` (variáveis do job, sem `pretest`/`.env.test`); as migrações são aplicadas no passo `prisma migrate deploy` anterior.
-3. **Lint ausente no CI:** o frontend tem `npm run lint` (hoje com **0 problemas**), porém nenhum workflow o executa; o backend não tem linter.
+1. **Workflows consolidados:** `backend-ci.yml` e `frontend-ci.yml` (M7) foram substituídos pelo `ci.yml` em `chore-sonarqube-quality`. Pushes em branches de feature não disparam mais o CI; ele roda no PR (e em `main`/`develop`).
+2. **Script de teste no CI:** o job `backend` usa `npm run test:ci` (variáveis do job, sem `pretest`/`.env.test`); as migrações são aplicadas no passo `prisma migrate deploy` anterior.
+3. ~~**Lint ausente no CI**~~ ✅ — `npm run lint` roda nos dois jobs; o backend ganhou ESLint (0 problemas em 84 arquivos, sem alterações de código).
 4. **Import SINAPI** não roda `prisma migrate deploy` — assume que produção já está migrada.
 5. **Sem deploy automatizado** (CD) para backend ou frontend.
 6. ~~**Execução agendada do import quebrada**~~ ✅ — no cron, `inputs.source` é vazio e o workflow define `SINAPI_SOURCE=""`; com `??` a string vazia não caía no default (`ENOENT`). **Corrigido** em `fix-debitos-tecnicos-n2` (`resolverFonteSinapi`: `||` + `trim`). Ainda assim o job agendado só recarrega a amostra (§7, item 14).
@@ -617,7 +622,7 @@ Base: `http://localhost:3333`. 🔒 = exige `Authorization: Bearer <JWT>`. Todas
 | 1 | ~~Alta~~ ✅ | `sinapi.test.ts` não casava com `testMatch: **/*.spec.ts`. | **Resolvido:** renomeado para `sinapi.spec.ts`. |
 | 2 | ~~Alta~~ ✅ | `resolverPrecoReferencia()` retornava `null`. | **Resolvido** no PR #21 (precificação por `codigoNormalizado` + `sinapiConfig`); N+1 eliminado em `fix-debitos-tecnicos-n2` (uma consulta `IN` + `Map`). |
 | 3 | ~~Média~~ ✅ | Dois workflows de CI de backend sobrepostos; `backend-ci.yml` usava `npm test`. | **Resolvido:** `ci.yml` removido; `backend-ci.yml` usa `npm run test:ci`. |
-| 4 | Média | Lint não executado no CI; backend sem ESLint. Frontend já está com **0 problemas** (16 eram pré-existentes: `set-state-in-effect`, `only-export-components`, `incompatible-library`, triple-slash). | Adicionar `npm run lint` ao `frontend-ci.yml`; configurar ESLint no backend. |
+| 4 | ~~Média~~ ✅ | Lint não executado no CI; backend sem ESLint. | **Resolvido** em `chore-sonarqube-quality`: ESLint no backend e `npm run lint` nos dois jobs do `ci.yml`. |
 | 5 | Média | `ItemSinapi` fora da convenção `snake_case`/`@@map`. | Padronizar em migração dedicada (renomear tabela/colunas). |
 | 6 | ~~Média~~ ✅ | `origemPreco` era string livre. | **Resolvido** no PR #21: enum `OrigemPreco` com migração que preserva os dados. |
 | 7 | Média | CORS aberto, sem rate limit em `/auth/login`. | Restringir origem por env; adicionar `express-rate-limit`. |
@@ -625,7 +630,7 @@ Base: `http://localhost:3333`. 🔒 = exige `Authorization: Bearer <JWT>`. Todas
 | 9 | Baixa | Dois estilos de organização no backend (camadas vs. `modules/`). | Registrar ADR com o padrão oficial. |
 | 10 | ~~Baixa~~ ✅ | Comentários residuais "AJUSTE o import…", "upsert" e referência a `sinapi_trgm.sql` inexistente. | **Resolvido** em `fix-debitos-tecnicos-n2`. |
 | 11 | Baixa | Dependência `cn` não utilizada no frontend; versões de TypeScript diferentes entre pacotes; `jest@30` com `ts-jest@29`/`@types/jest@29`. | Alinhar dependências. |
-| 12 | Baixa | Sem cobertura de testes configurada (UI de Tarefas ✅ entregue no PR #22). | Adicionar `--coverage` com thresholds (pré-requisito do SonarCloud). |
+| 12 | Baixa | ✅ Cobertura configurada (lcov nos dois pacotes, enviada ao SonarCloud). Resta: frontend em ~51% de linhas (Obras, Materiais, Login/Register sem teste). | Elevar a cobertura do frontend; avaliar thresholds locais depois do primeiro Quality Gate. |
 | 13 | Baixa | Sem `engines`/`.nvmrc`; versão do Node definida só no CI. | Adicionar `"engines": { "node": ">=20" }`. |
 | 14 | Média | ~~`ENOENT` com `source` vazio~~ ✅ corrigido (`\|\|` + `trim`). Resta: o job agendado carrega apenas a amostra de 08/2025, sem dados novos. | Definir de onde o job obtém a planilha de cada mês. |
 | 15 | Média | ✅ O `InformarPrecoDialog` agora envia `uf`/`regime`. Resta: a busca não filtra por **competência** — com mais de uma carregada (ex.: amostra 08/2025 + planilha 09/2026), preços antigos e atuais do mesmo código competem pelo limite de 8 sugestões. | Filtrar pela competência de `sinapiConfig` (ou a mais recente) e expô-la ao front. |
@@ -655,6 +660,7 @@ Base: `http://localhost:3333`. 🔒 = exige `Authorization: Bearer <JWT>`. Todas
 | `VITE_API_URL` | frontend | — | `http://localhost:3333/api` | Base do Axios. |
 | `VITE_SINAPI_UF`, `VITE_SINAPI_REGIME` | frontend | — | `SC`, `NAO_DESONERADO` | Filtros do autocomplete SINAPI (`lib/sinapi.ts`); devem bater com `SINAPI_*_PADRAO`. |
 | `POSTGRES_*`, `PGADMIN_*` | raiz (compose) | ✔ p/ compose | — | Containers locais. |
+| `SONAR_TOKEN` | GitHub Secret (`ci.yml`) | ✔ p/ análise | — | Token do SonarCloud usado pelo job `sonarcloud`; ausente → análise ignorada com *warning*. |
 
 ## Apêndice B — Comandos de referência
 
@@ -667,6 +673,8 @@ cd backend
 npm run dev              # tsx watch
 npm run prisma:migrate   # nova migração (dev)
 npm test                 # migra schema test_buildplan e roda Jest
+npm run test:coverage    # idem + coverage/lcov.info
+npm run lint             # ESLint
 npm run sinapi:import    # carrega a amostra SINAPI (idempotente)
 SINAPI_SOURCE="prisma/seed/sinapi/SINAPI 202609 SC.xlsx" npm run sinapi:import   # planilha oficial
 
@@ -674,6 +682,7 @@ SINAPI_SOURCE="prisma/seed/sinapi/SINAPI 202609 SC.xlsx" npm run sinapi:import  
 cd frontend
 npm run dev              # Vite em :5173
 npm test                 # Vitest (no Windows, prefira PowerShell — ver §5.2)
+npm run test:coverage    # idem + coverage/lcov.info (v8)
 npm run lint             # deve terminar com 0 problemas
 npm run build            # tsc --noEmit && vite build
 ```
@@ -685,4 +694,5 @@ npm run build            # tsc --noEmit && vite build
 | 2026-11-01 | `b42f18b` (PR #18) | Snapshot inicial: marcos M1–M7 + integração SINAPI. |
 | 2026-11-01 | `19e6936` (PR #19) + trabalho não commitado de `feature-sinapi-fase-2` | Importador com planilha oficial e replace por competência, parser e `xlsx`; lista flutuante no `InformarPrecoDialog`; contagem de testes; novas variáveis de ambiente; achados 14–18. Conferido com `tsc --noEmit` no backend e testes completos: backend 101/101, frontend 21/21. |
 | 2026-11-12 | `c0158be` (PR #22) + `fix-debitos-tecnicos-n2` | Incorpora PRs #20–#22 (parser/planilha, precificação automática, enum `OrigemPreco`, `codigoNormalizado`, Cronograma). Débitos da N2: N+1 na precificação, importador com Zod e fallback de `SINAPI_SOURCE`, datas anuláveis e ciclo de `dataConclusao`, `uf`/`regime` no autocomplete, ESLint zerado, testes de Dashboard/suprimentos/material, limpeza de comentários. Marcadores 🚧 removidos. Conferido: `tsc --noEmit` (back e front), backend 135/135, frontend 96/96, `npm run lint` com 0 problemas. |
+| 2026-11-12 | `6912b19` (PR #23) + `chore-sonarqube-quality` | Etapa 3: cobertura lcov (Jest e `@vitest/coverage-v8`), ESLint no backend, `ci.yml` unificado (lint · tsc · testes com cobertura · build · SonarCloud) no lugar de `backend-ci.yml`/`frontend-ci.yml`, `sonar-project.properties`. Linha de base de cobertura: backend 92,3% / frontend 50,6% (linhas). |
 
