@@ -30,6 +30,20 @@ const config: JestConfigWithTsJest = {
   roots: ["<rootDir>/src"],
   testMatch: ["**/*.spec.ts"],
 
+  // Cobertura (npm run test:coverage / test:ci): gera coverage/lcov.info para o
+  // SonarCloud. Ficam fora o bootstrap do servidor, o script CLI do importador,
+  // declarações de tipo e a infraestrutura dos próprios testes.
+  collectCoverageFrom: [
+    "src/**/*.ts",
+    "!src/**/*.spec.ts",
+    "!src/tests/**",
+    "!src/server.ts",
+    "!src/scripts/**",
+    "!src/types/**",
+  ],
+  coverageDirectory: "coverage",
+  coverageReporters: ["text-summary", "lcov"],
+
   // Limpa e prepara o banco entre os testes
   setupFilesAfterEnv: ["<rootDir>/src/tests/setup.ts"],
 

@@ -32,20 +32,26 @@ jobs:
       SINAPI_SOURCE: ${{ github.event.inputs.source }}
     steps:
       - name: Checkout do repositório
-        uses: actions/checkout@v4
-
-      - name: Configurar Node.js 20.x
-        uses: actions/setup-node@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: 20.x
+          persist-credentials: false
+
+      - name: Configurar Node.js 22.x (LTS)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.x
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
-      - name: Instalar dependências (clean install)
-        run: npm ci
+      # Sem lifecycle scripts de dependências; só os engines do Prisma são preparados.
+      - name: Instalar dependências (clean install, sem lifecycle scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Preparar Prisma engines
+        run: npm rebuild @prisma/engines
 
       - name: Gerar o Prisma Client
-        run: npx prisma generate
+        run: npm run prisma:generate
 
       - name: Importar catálogo (replace por competência, idempotente)
         run: npm run sinapi:import
