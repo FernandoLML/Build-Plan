@@ -50,7 +50,7 @@ export type Competencia = Pick<RegistroSinapi, "uf" | "mesReferencia" | "anoRefe
 /** Valor de env "preenchido": trata ausente, vazio e só-espaços como não informado. */
 export function envPreenchida(valor: string | undefined): string | undefined {
   const limpo = valor?.trim();
-  return limpo ? limpo : undefined;
+  return limpo || undefined;
 }
 
 /** Fonte da importação: SINAPI_SOURCE (se preenchida) ou o caminho padrão. */

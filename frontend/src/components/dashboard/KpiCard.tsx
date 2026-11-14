@@ -12,7 +12,7 @@ interface KpiCardProps {
   accent?: string;
 }
 
-export function KpiCard({ titulo, valor, descricao, icon, accent }: KpiCardProps) {
+export function KpiCard({ titulo, valor, descricao, icon, accent }: Readonly<KpiCardProps>) {
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900 p-5">
       <div className="flex items-center justify-between gap-3">

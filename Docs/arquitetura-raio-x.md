@@ -67,7 +67,7 @@ flowchart LR
 | `jsonwebtoken` | ^9.0 | Emissão/verificação de JWT HS256. |
 | `bcrypt` | ^5.1 | Hash de senha (custo **12**, exigência do RFC §6.1). |
 | `helmet` | ^7.1 | Cabeçalhos de segurança HTTP. |
-| `cors` | ^2.8 | CORS (atualmente **aberto** a qualquer origem — `cors()` sem opções). |
+| `cors` | ^2.8 | CORS restrito à allowlist `CORS_ORIGINS` (métodos e headers explícitos). |
 | `dotenv` / `dotenv-cli` | ^16.4 / ^7.4 | Carga de `.env` (app) e `.env.test` (scripts de teste). |
 | `@prisma/client` | ^6.0 | Acesso a dados (singleton em `lib/prisma.ts`). |
 
@@ -328,7 +328,7 @@ Cada recurso exporta tipicamente dois routers: um **aninhado** (ex.: `obraMateri
 | Env | `JWT_SECRET` com mínimo de 16 caracteres; app encerra (`process.exit(1)`) se env inválido. |
 | Limites de payload | `express.json({ limit: "1mb" })`; `express.text` para `text/csv`/`text/plain` até 2 MB (UC01). |
 
-**Lacunas conhecidas:** CORS aberto, sem rate limit no login, sem refresh token, sem autorização por `papel`, token em `localStorage` no front (trade-off documentado em `lib/token.ts`).
+**Lacunas conhecidas:** sem rate limit no login, sem refresh token, sem autorização por `papel`, token em `localStorage` no front (trade-off documentado em `lib/token.ts`).
 
 ### 3.4 Tratamento de erros e utilitários
 
@@ -634,7 +634,7 @@ Base: `http://localhost:3333`. 🔒 = exige `Authorization: Bearer <JWT>`. Todas
 | 4 | ~~Média~~ ✅ | Lint não executado no CI; backend sem ESLint. | **Resolvido** em `chore-sonarqube-quality`: ESLint no backend e `npm run lint` nos dois jobs do `ci.yml`. |
 | 5 | Média | `ItemSinapi` fora da convenção `snake_case`/`@@map`. | Padronizar em migração dedicada (renomear tabela/colunas). |
 | 6 | ~~Média~~ ✅ | `origemPreco` era string livre. | **Resolvido** no PR #21: enum `OrigemPreco` com migração que preserva os dados. |
-| 7 | Média | CORS aberto, sem rate limit em `/auth/login`. | Restringir origem por env; adicionar `express-rate-limit`. |
+| 7 | Média | ~~CORS aberto~~ ✅ (allowlist `CORS_ORIGINS`); sem rate limit em `/auth/login`. | Adicionar `express-rate-limit`. |
 | 8 | Baixa | `LogRastreabilidade.usuario` com `ON DELETE RESTRICT` impede excluir usuário com logs. | Decidir política (manter auditoria ⇒ soft-delete de usuário). |
 | 9 | Baixa | Dois estilos de organização no backend (camadas vs. `modules/`). | Registrar ADR com o padrão oficial. |
 | 10 | ~~Baixa~~ ✅ | Comentários residuais "AJUSTE o import…", "upsert" e referência a `sinapi_trgm.sql` inexistente. | **Resolvido** em `fix-debitos-tecnicos-n2`. |
@@ -659,6 +659,7 @@ Base: `http://localhost:3333`. 🔒 = exige `Authorization: Bearer <JWT>`. Todas
 | `DATABASE_URL` | backend | ✔ | — | Conexão Postgres (inclui `?schema=`). |
 | `JWT_SECRET` | backend | ✔ (≥16 chars) | — | Assinatura HS256. |
 | `JWT_EXPIRES_IN` | backend | — | `8h` | Validade do token. |
+| `CORS_ORIGINS` | backend | — | `http://localhost:5173` | Origens do frontend liberadas pelo CORS, separadas por vírgula; `*` é rejeitado. |
 | `PORT` | backend | — | `3333` | Porta HTTP. |
 | `NODE_ENV` | backend | — | `development` | Controla log do Prisma e singleton global. |
 | `SINAPI_SOURCE` | backend (script) | — | `prisma/seed/sinapi.sample.json` | Fonte do importador: JSON (arquivo ou URL) ou planilha `.xlsx` (só arquivo). Vazia/só espaços → default. |

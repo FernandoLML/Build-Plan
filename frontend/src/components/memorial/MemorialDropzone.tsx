@@ -1,7 +1,7 @@
 // Caminho: /frontend/src/components/memorial/MemorialDropzone.tsx
 // Área de upload (drag-and-drop + seletor) que lê o CSV/TXT no cliente.
 
-import { useRef, useState } from "react";
+import { useId, useState } from "react";
 import { UploadCloud } from "lucide-react";
 
 const TAMANHO_MAX = 2 * 1024 * 1024; // 2MB
@@ -13,8 +13,8 @@ interface MemorialDropzoneProps {
   disabled?: boolean;
 }
 
-export function MemorialDropzone({ onArquivoLido, onErro, disabled }: MemorialDropzoneProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
+export function MemorialDropzone({ onArquivoLido, onErro, disabled }: Readonly<MemorialDropzoneProps>) {
+  const inputId = useId();
   const [arrastando, setArrastando] = useState(false);
 
   function processarArquivo(file: File) {
@@ -26,14 +26,17 @@ export function MemorialDropzone({ onArquivoLido, onErro, disabled }: MemorialDr
       onErro("Arquivo muito grande (máximo de 2MB).");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => onArquivoLido(String(reader.result ?? ""), file.name);
-    reader.onerror = () => onErro("Falha ao ler o arquivo.");
-    reader.readAsText(file);
+    file
+      .text()
+      .then((texto) => onArquivoLido(texto, file.name))
+      .catch(() => onErro("Falha ao ler o arquivo."));
   }
 
   return (
-    <div
+    // <label> nativo: clicar (ou Enter/Espaço no input focado) abre o seletor,
+    // sem handlers de clique em elemento não interativo.
+    <label
+      htmlFor={inputId}
       onDragOver={(e) => {
         e.preventDefault();
         if (!disabled) setArrastando(true);
@@ -46,8 +49,7 @@ export function MemorialDropzone({ onArquivoLido, onErro, disabled }: MemorialDr
         const file = e.dataTransfer.files?.[0];
         if (file) processarArquivo(file);
       }}
-      onClick={() => !disabled && inputRef.current?.click()}
-      className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-10 text-center transition-colors ${
+      className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-10 text-center transition-colors focus-within:ring-2 focus-within:ring-indigo-500 ${
         arrastando
           ? "border-indigo-500 bg-indigo-500/10"
           : "border-slate-700 hover:border-slate-600 hover:bg-slate-800/40"
@@ -59,16 +61,17 @@ export function MemorialDropzone({ onArquivoLido, onErro, disabled }: MemorialDr
       </p>
       <p className="text-xs text-slate-500">Formatos aceitos: .csv ou .txt (até 2MB)</p>
       <input
-        ref={inputRef}
+        id={inputId}
         type="file"
         accept=".csv,.txt,text/csv,text/plain"
-        className="hidden"
+        disabled={disabled}
+        className="sr-only"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) processarArquivo(file);
           e.target.value = ""; // permite reenviar o mesmo arquivo
         }}
       />
-    </div>
+    </label>
   );
 }

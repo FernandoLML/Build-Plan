@@ -33,8 +33,12 @@ export interface OpcoesParser {
   tipo?: TipoSinapi; // default "INSUMO"
 }
 
+// Converte só valores primitivos; objetos viram "" (evita "[object Object]").
+const paraTexto = (v: unknown): string =>
+  typeof v === "string" || typeof v === "number" || typeof v === "boolean" ? String(v) : "";
+
 const normaliza = (s: unknown): string =>
-  String(s ?? "")
+  paraTexto(s)
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .replace(/\s+/g, " ")
@@ -42,7 +46,7 @@ const normaliza = (s: unknown): string =>
     .toUpperCase();
 
 const paraNumero = (v: unknown): number | null => {
-  const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."));
+  const n = typeof v === "number" ? v : Number.parseFloat(paraTexto(v).replace(",", "."));
   return Number.isFinite(n) ? n : null;
 };
 

@@ -11,7 +11,7 @@ export async function buscarSinapi(params: BuscarSinapiQuery) {
   // "370" também encontra "00000370" (mesma normalização da precificação).
   const codigoNormalizado = normalizarCodigoSinapi(q) ?? q;
 
-  return prisma.itemSinapi.findMany({
+  return await prisma.itemSinapi.findMany({
     where: {
       ...(uf ? { uf } : {}),
       ...(regime ? { regime } : {}),

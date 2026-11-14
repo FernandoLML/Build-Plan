@@ -58,20 +58,22 @@ export function CronogramaPage() {
         </div>
       )}
 
-      {isLoading ? (
+      {isLoading && (
         <div className="space-y-4">
           <Skeleton className="h-20 w-full rounded-lg" />
           <Skeleton className="h-40 w-full rounded-lg" />
         </div>
-      ) : etapasOrdenadas.length === 0 ? (
-        !isError && (
-          <div className="rounded-lg border border-dashed border-slate-800 p-12 text-center">
-            <CalendarRange className="mx-auto h-10 w-10 text-slate-600" />
-            <p className="mt-3 font-medium text-slate-200">Nenhuma etapa cadastrada</p>
-            <p className="text-sm text-slate-500">Crie a primeira etapa para começar a planejar as tarefas.</p>
-          </div>
-        )
-      ) : (
+      )}
+
+      {!isLoading && !isError && etapasOrdenadas.length === 0 && (
+        <div className="rounded-lg border border-dashed border-slate-800 p-12 text-center">
+          <CalendarRange className="mx-auto h-10 w-10 text-slate-600" />
+          <p className="mt-3 font-medium text-slate-200">Nenhuma etapa cadastrada</p>
+          <p className="text-sm text-slate-500">Crie a primeira etapa para começar a planejar as tarefas.</p>
+        </div>
+      )}
+
+      {!isLoading && etapasOrdenadas.length > 0 && (
         <>
           <div className="rounded-lg border border-slate-800 bg-slate-900 p-4" data-testid="progresso-obra">
             <BarraProgresso

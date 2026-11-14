@@ -122,7 +122,7 @@ export class ListaComprasService {
     });
 
     const lista = await prisma.$transaction(async (tx) => {
-      return tx.listaCompras.create({
+      return await tx.listaCompras.create({
         data: {
           obraId: etapa.obraId,
           etapaId: etapa.id,

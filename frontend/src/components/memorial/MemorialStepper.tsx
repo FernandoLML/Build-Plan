@@ -9,7 +9,14 @@ const STEPS = [
   { n: 3, label: "Confirmação" },
 ];
 
-export function MemorialStepper({ currentStep }: { currentStep: number }) {
+/** Cor do marcador: concluída (verde), atual (índigo) ou pendente (cinza). */
+function classeEtapa(done: boolean, active: boolean): string {
+  if (done) return "bg-emerald-500 text-white";
+  if (active) return "bg-indigo-600 text-white";
+  return "bg-slate-800 text-slate-500";
+}
+
+export function MemorialStepper({ currentStep }: Readonly<{ currentStep: number }>) {
   return (
     <div className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3">
       {STEPS.map((step, idx) => {
@@ -19,13 +26,7 @@ export function MemorialStepper({ currentStep }: { currentStep: number }) {
           <div key={step.n} className="flex flex-1 items-center gap-3">
             <div className="flex items-center gap-2">
               <span
-                className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
-                  done
-                    ? "bg-emerald-500 text-white"
-                    : active
-                      ? "bg-indigo-600 text-white"
-                      : "bg-slate-800 text-slate-500"
-                }`}
+                className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${classeEtapa(done, active)}`}
               >
                 {done ? <Check className="h-3.5 w-3.5" /> : step.n}
               </span>

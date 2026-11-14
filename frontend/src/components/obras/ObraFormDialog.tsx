@@ -28,7 +28,14 @@ interface ObraFormDialogProps {
 
 const VALORES_VAZIOS: ObraFormValues = { nome: "", descricao: "", endereco: "" };
 
-export function ObraFormDialog({ open, onOpenChange, obra }: ObraFormDialogProps) {
+function extrairErro(e: unknown): string {
+  if (e instanceof AxiosError) {
+    return (e.response?.data as { message?: string })?.message ?? "Erro ao salvar a obra.";
+  }
+  return "Erro ao salvar a obra.";
+}
+
+export function ObraFormDialog({ open, onOpenChange, obra }: Readonly<ObraFormDialogProps>) {
   const criar = useCriarObra();
   const atualizar = useAtualizarObra();
   const [erro, setErro] = useState<string | null>(null);
@@ -67,13 +74,6 @@ export function ObraFormDialog({ open, onOpenChange, obra }: ObraFormDialogProps
   }
 
   const pendente = criar.isPending || atualizar.isPending;
-
-  function extrairErro(e: unknown): string {
-    if (e instanceof AxiosError) {
-      return (e.response?.data as { message?: string })?.message ?? "Erro ao salvar a obra.";
-    }
-    return "Erro ao salvar a obra.";
-  }
 
   function onSubmit(values: ObraFormValues) {
     setErro(null);

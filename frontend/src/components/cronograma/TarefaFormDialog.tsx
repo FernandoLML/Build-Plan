@@ -53,8 +53,9 @@ function valoresIniciais(tarefa?: Tarefa | null): TarefaFormValues {
   };
 }
 
-export function TarefaFormDialog({ open, onOpenChange, etapaId, obraId, tarefa }: TarefaFormDialogProps) {
+export function TarefaFormDialog({ open, onOpenChange, etapaId, obraId, tarefa }: Readonly<TarefaFormDialogProps>) {
   const editando = !!tarefa;
+  const rotuloSalvar = editando ? "Salvar alterações" : "Criar tarefa";
   const criar = useCriarTarefa(etapaId, obraId);
   const atualizar = useAtualizarTarefa(etapaId, obraId);
   const pendente = criar.isPending || atualizar.isPending;
@@ -153,7 +154,7 @@ export function TarefaFormDialog({ open, onOpenChange, etapaId, obraId, tarefa }
               Cancelar
             </Button>
             <Button type="submit" disabled={pendente}>
-              {pendente ? "Salvando…" : editando ? "Salvar alterações" : "Criar tarefa"}
+              {pendente ? "Salvando…" : rotuloSalvar}
             </Button>
           </DialogFooter>
         </form>

@@ -22,11 +22,122 @@ import { calcularProgressoSuprimentos, encontrarEtapaEmExecucao } from "@/lib/su
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { BarraProgresso } from "@/components/dashboard/BarraProgresso";
 import { StatusBadge } from "@/components/rastreabilidade/StatusBadge";
+import type { DashboardObra } from "@/types/dashboard";
+import type { EtapaComProgresso } from "@/types/etapa";
+import type { VinculoMaterialEtapa } from "@/types/material";
 
 interface Alerta {
   cor: string;
   valor: number;
   texto: string;
+}
+
+/** Pontos de atenção exibidos no card de alertas. */
+function montarAlertas(data: DashboardObra | undefined): Alerta[] {
+  if (!data) return [];
+  const alertas: Alerta[] = [];
+  if (data.orcamento.itensSemPreco > 0) {
+    alertas.push({ cor: "bg-amber-400", valor: data.orcamento.itensSemPreco, texto: "item(ns) da lista de compras sem preço" });
+  }
+  if (data.vinculos.porStatus.PREVISTO.quantidade > 0) {
+    alertas.push({ cor: "bg-rose-400", valor: data.vinculos.porStatus.PREVISTO.quantidade, texto: "material(is) previsto(s) ainda não recebido(s)" });
+  }
+  return alertas;
+}
+
+/** Cor da barra de progresso: verde só quando há itens e todos foram concluídos. */
+function corProgresso(total: number, percentual: number): string {
+  return total > 0 && percentual === 100 ? "bg-emerald-500" : "bg-indigo-600";
+}
+
+interface SuprimentosPorEtapaProps {
+  carregando: boolean;
+  etapas: EtapaComProgresso[];
+  vinculos: VinculoMaterialEtapa[];
+}
+
+function SuprimentosPorEtapa({ carregando, etapas, vinculos }: Readonly<SuprimentosPorEtapaProps>) {
+  if (carregando) {
+    return (
+      <div data-testid="suprimentos-carregando" className="space-y-5">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-9 w-full" />
+        ))}
+      </div>
+    );
+  }
+  if (etapas.length === 0) {
+    return (
+      <div className="py-6 text-center">
+        <p className="text-sm text-slate-500">Nenhuma etapa cadastrada nesta obra.</p>
+        <Button asChild variant="outline" size="sm" className="mt-3">
+          <Link to="/materiais">Cadastrar etapa</Link>
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <>
+      {etapas.map((etapa) => {
+        const { total, aplicados, percentual } = calcularProgressoSuprimentos(vinculos, etapa.id);
+        return (
+          <BarraProgresso
+            key={etapa.id}
+            label={etapa.nome}
+            percentual={percentual}
+            detalhe={`${aplicados} de ${total} insumos aplicados • ${percentual}%`}
+            cor={corProgresso(total, percentual)}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+interface MateriaisEtapaExecucaoProps {
+  carregando: boolean;
+  etapa: EtapaComProgresso | null;
+  vinculos: VinculoMaterialEtapa[];
+}
+
+function MateriaisEtapaExecucao({ carregando, etapa, vinculos }: Readonly<MateriaisEtapaExecucaoProps>) {
+  if (carregando) return <Skeleton className="h-24 w-full" />;
+  if (!etapa) return <p className="text-sm text-slate-500">Nenhuma etapa em execução.</p>;
+  if (vinculos.length === 0) {
+    return <p className="text-sm text-slate-500">Nenhum material vinculado a esta etapa.</p>;
+  }
+  return (
+    <div className="overflow-hidden rounded-lg border border-slate-800">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-800 bg-slate-950/40 text-left">
+            <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Material</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-400">Qtd. prevista</th>
+            <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Unidade</th>
+            <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Status</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-400">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {vinculos.map((v) => (
+            <tr key={v.id} className="border-b border-slate-800/60 last:border-0 hover:bg-slate-800/30">
+              <td className="px-4 py-3.5 font-medium text-slate-100">{v.material?.nome ?? "—"}</td>
+              <td className="px-4 py-3.5 text-right tabular-nums text-slate-200">{v.quantidade}</td>
+              <td className="px-4 py-3.5 text-slate-400">{v.material?.unidade ?? "—"}</td>
+              <td className="px-4 py-3.5"><StatusBadge status={v.status} /></td>
+              <td className="px-4 py-3.5 text-right">
+                <Button asChild variant="ghost" size="sm" className="text-indigo-400 hover:text-indigo-300">
+                  <Link to="/rastreabilidade">
+                    Ver <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                  </Link>
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 export function DashboardPage() {
@@ -58,15 +169,7 @@ export function DashboardPage() {
     ? vinculos.filter((v) => v.etapaId === etapaExecucao.id)
     : [];
 
-  const alertas: Alerta[] = [];
-  if (data) {
-    if (data.orcamento.itensSemPreco > 0) {
-      alertas.push({ cor: "bg-amber-400", valor: data.orcamento.itensSemPreco, texto: "item(ns) da lista de compras sem preço" });
-    }
-    if (data.vinculos.porStatus.PREVISTO.quantidade > 0) {
-      alertas.push({ cor: "bg-rose-400", valor: data.vinculos.porStatus.PREVISTO.quantidade, texto: "material(is) previsto(s) ainda não recebido(s)" });
-    }
-  }
+  const alertas = montarAlertas(data);
   // Informativo (não é ponto de atenção): exibido à parte da lista de alertas.
   const materiaisAplicados = data?.vinculos.porStatus.APLICADO.quantidade ?? 0;
 
@@ -137,11 +240,7 @@ export function DashboardPage() {
                     ? "Sem tarefas cadastradas • 0%"
                     : `${data.progressoTarefas.concluidas} de ${data.progressoTarefas.total} tarefas concluídas • ${data.progressoTarefas.percentual}%`
                 }
-                cor={
-                  data.progressoTarefas.total > 0 && data.progressoTarefas.percentual === 100
-                    ? "bg-emerald-500"
-                    : "bg-indigo-600"
-                }
+                cor={corProgresso(data.progressoTarefas.total, data.progressoTarefas.percentual)}
               />
             </div>
             <Button asChild variant="ghost" size="sm" className="text-slate-400 hover:text-slate-100">
@@ -160,33 +259,11 @@ export function DashboardPage() {
             <CardTitle className="text-base text-slate-100">Suprimentos por etapa</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
-            {carregandoSuprimentos ? (
-              <div data-testid="suprimentos-carregando" className="space-y-5">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-9 w-full" />
-                ))}
-              </div>
-            ) : etapasOrdenadas.length === 0 ? (
-              <div className="py-6 text-center">
-                <p className="text-sm text-slate-500">Nenhuma etapa cadastrada nesta obra.</p>
-                <Button asChild variant="outline" size="sm" className="mt-3">
-                  <Link to="/materiais">Cadastrar etapa</Link>
-                </Button>
-              </div>
-            ) : (
-              etapasOrdenadas.map((etapa) => {
-                const { total, aplicados, percentual } = calcularProgressoSuprimentos(vinculos, etapa.id);
-                return (
-                  <BarraProgresso
-                    key={etapa.id}
-                    label={etapa.nome}
-                    percentual={percentual}
-                    detalhe={`${aplicados} de ${total} insumos aplicados • ${percentual}%`}
-                    cor={total > 0 && percentual === 100 ? "bg-emerald-500" : "bg-indigo-600"}
-                  />
-                );
-              })
-            )}
+            <SuprimentosPorEtapa
+              carregando={carregandoSuprimentos}
+              etapas={etapasOrdenadas}
+              vinculos={vinculos}
+            />
           </CardContent>
         </Card>
 
@@ -201,8 +278,8 @@ export function DashboardPage() {
               </p>
             ) : (
               <ul className="space-y-4">
-                {alertas.map((a, i) => (
-                  <li key={i} className="flex items-start gap-3">
+                {alertas.map((a) => (
+                  <li key={a.texto} className="flex items-start gap-3">
                     <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${a.cor}`} />
                     <p className="text-sm font-medium text-slate-300">
                       <span className="font-semibold tabular-nums text-slate-100">{a.valor}</span>{" "}
@@ -241,44 +318,11 @@ export function DashboardPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {carregandoSuprimentos ? (
-            <Skeleton className="h-24 w-full" />
-          ) : !etapaExecucao ? (
-            <p className="text-sm text-slate-500">Nenhuma etapa em execução.</p>
-          ) : vinculosExecucao.length === 0 ? (
-            <p className="text-sm text-slate-500">Nenhum material vinculado a esta etapa.</p>
-          ) : (
-            <div className="overflow-hidden rounded-lg border border-slate-800">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-800 bg-slate-950/40 text-left">
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Material</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-400">Qtd. prevista</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Unidade</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Status</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-400">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {vinculosExecucao.map((v) => (
-                    <tr key={v.id} className="border-b border-slate-800/60 last:border-0 hover:bg-slate-800/30">
-                      <td className="px-4 py-3.5 font-medium text-slate-100">{v.material?.nome ?? "—"}</td>
-                      <td className="px-4 py-3.5 text-right tabular-nums text-slate-200">{v.quantidade}</td>
-                      <td className="px-4 py-3.5 text-slate-400">{v.material?.unidade ?? "—"}</td>
-                      <td className="px-4 py-3.5"><StatusBadge status={v.status} /></td>
-                      <td className="px-4 py-3.5 text-right">
-                        <Button asChild variant="ghost" size="sm" className="text-indigo-400 hover:text-indigo-300">
-                          <Link to="/rastreabilidade">
-                            Ver <ExternalLink className="ml-1 h-3.5 w-3.5" />
-                          </Link>
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <MateriaisEtapaExecucao
+            carregando={carregandoSuprimentos}
+            etapa={etapaExecucao}
+            vinculos={vinculosExecucao}
+          />
         </CardContent>
       </Card>
     </div>

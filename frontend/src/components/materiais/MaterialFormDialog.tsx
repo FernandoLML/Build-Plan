@@ -29,7 +29,7 @@ interface MaterialFormDialogProps {
 
 const VAZIO: MaterialFormValues = { nome: "", especificacao: "", unidade: "", quantidade: 0 };
 
-export function MaterialFormDialog({ open, onOpenChange, material, obraId }: MaterialFormDialogProps) {
+export function MaterialFormDialog({ open, onOpenChange, material, obraId }: Readonly<MaterialFormDialogProps>) {
   const criar = useCriarMaterial(obraId);
   const atualizar = useAtualizarMaterial(obraId);
   const [erro, setErro] = useState<string | null>(null);

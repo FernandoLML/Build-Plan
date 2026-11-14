@@ -28,7 +28,7 @@ interface MudarStatusDialogProps {
   obraId: string;
 }
 
-export function MudarStatusDialog({ open, onOpenChange, vinculo, etapaId, obraId }: MudarStatusDialogProps) {
+export function MudarStatusDialog({ open, onOpenChange, vinculo, etapaId, obraId }: Readonly<MudarStatusDialogProps>) {
   const atualizar = useAtualizarStatusVinculo(obraId);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -54,6 +54,7 @@ export function MudarStatusDialog({ open, onOpenChange, vinculo, etapaId, obraId
   }
 
   const proximo = vinculo ? PROXIMO_STATUS[vinculo.status] : null;
+  const rotuloConfirmar = `Confirmar: ${proximo ? STATUS_LABEL[proximo] : ""}`;
 
   function onSubmit(values: MudarStatusValues) {
     if (!vinculo || !proximo) return;
@@ -107,7 +108,7 @@ export function MudarStatusDialog({ open, onOpenChange, vinculo, etapaId, obraId
               Cancelar
             </Button>
             <Button type="submit" disabled={atualizar.isPending || !proximo}>
-              {atualizar.isPending ? "Salvando…" : `Confirmar: ${proximo ? STATUS_LABEL[proximo] : ""}`}
+              {atualizar.isPending ? "Salvando…" : rotuloConfirmar}
             </Button>
           </DialogFooter>
         </form>

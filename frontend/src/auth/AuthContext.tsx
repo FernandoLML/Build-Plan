@@ -9,8 +9,8 @@ import { tokenStorage } from "@/lib/token";
 import type { LoginPayload, Usuario } from "@/types/auth";
 import { AuthContext, type AuthContextValue } from "./AuthContextDef";
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [usuario, setUsuarioState] = useState<Usuario | null>(null);
+export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
+  const [usuario, setUsuario] = useState<Usuario | null>(null);
   // Só há sessão a restaurar se existir token salvo; sem token, não carrega.
   const [loading, setLoading] = useState<boolean>(() => tokenStorage.get() !== null);
 
@@ -19,11 +19,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!tokenStorage.get()) return;
     authApi
       .me()
-      .then((u) => setUsuarioState(u))
+      .then((u) => setUsuario(u))
       .catch(() => {
         // Token inválido/expirado: encerra a sessão silenciosamente.
         tokenStorage.clear();
-        setUsuarioState(null);
+        setUsuario(null);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -31,12 +31,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (payload: LoginPayload) => {
     const { token, usuario: u } = await authApi.login(payload);
     tokenStorage.set(token);
-    setUsuarioState(u);
+    setUsuario(u);
   }, []);
 
   const logout = useCallback(() => {
     tokenStorage.clear();
-    setUsuarioState(null);
+    setUsuario(null);
   }, []);
 
   const value = useMemo<AuthContextValue>(
@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       autenticado: usuario !== null,
       login,
       logout,
-      setUsuario: setUsuarioState,
+      setUsuario,
     }),
     [usuario, loading, login, logout],
   );
