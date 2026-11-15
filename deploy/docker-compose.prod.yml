@@ -1,0 +1,102 @@
+# Caminho: /deploy/docker-compose.prod.yml
+# Ambiente de produção na EC2: Postgres 17 + API Node, atrás do Nginx do host.
+#
+#   cd deploy && cp .env.example .env   # preencha os segredos
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Rede: nenhuma porta fica pública. O Postgres só existe na rede interna do
+# compose; a API escuta em 127.0.0.1:3333 e quem a expõe (80/443) é o Nginx.
+
+name: buildplan-prod
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER no .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB no .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Aplica as migrações (inclui CREATE EXTENSION pg_trgm) e termina.
+  # A API só sobe depois que este serviço conclui com sucesso.
+  migrate:
+    build: &build-tools
+      context: ../backend
+      target: build
+    image: buildplan-tools
+    restart: "no"
+    command: ["npm", "run", "prisma:deploy"]
+    environment: &db-env
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *logging
+
+  api:
+    build:
+      context: ../backend
+      target: runtime
+    image: buildplan-api
+    restart: unless-stopped
+    environment:
+      <<: *db-env
+      NODE_ENV: production
+      PORT: "3333"
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      CORS_ORIGINS: ${CORS_ORIGINS:?defina CORS_ORIGINS no .env}
+      TRUST_PROXY: "1" # um salto confiável: o Nginx do host
+      SINAPI_UF_PADRAO: ${SINAPI_UF_PADRAO:-SC}
+      SINAPI_MES_PADRAO: ${SINAPI_MES_PADRAO:-9}
+      SINAPI_ANO_PADRAO: ${SINAPI_ANO_PADRAO:-2026}
+      SINAPI_REGIME_PADRAO: ${SINAPI_REGIME_PADRAO:-NAO_DESONERADO}
+    ports:
+      - "127.0.0.1:3333:3333" # só o host (Nginx) alcança
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
+
+  # Importador do catálogo SINAPI (sob demanda):
+  #   docker compose -f docker-compose.prod.yml --profile tools run --rm sinapi
+  sinapi:
+    profiles: ["tools"]
+    build: *build-tools
+    image: buildplan-tools
+    restart: "no"
+    command: ["npm", "run", "sinapi:import"]
+    environment:
+      <<: *db-env
+      SINAPI_SOURCE: ${SINAPI_SOURCE:-prisma/seed/sinapi/SINAPI 202609 SC.xlsx}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    logging: *logging
+
+volumes:
+  postgres_data:

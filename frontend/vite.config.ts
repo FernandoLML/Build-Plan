@@ -1,9 +1,23 @@
 // Caminho: /frontend/vite.config.ts
 import { defineConfig } from "vitest/config";
+import { loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 
-export default defineConfig({
+// Na Vercel, falha o build se a URL da API não estiver configurada (ou não for
+// https): sem isso o site subiria apontando para http://localhost:3333.
+function exigirApiUrlNaVercel(mode: string): void {
+  if (process.env.VERCEL !== "1") return;
+  const apiUrl = loadEnv(mode, process.cwd(), "VITE_").VITE_API_URL?.trim() ?? "";
+  if (!apiUrl.startsWith("https://")) {
+    throw new Error(
+      "VITE_API_URL ausente ou sem https://. Defina em Vercel > Settings > Environment Variables " +
+        "(ex.: https://api.seu-dominio.com/api) e refaça o deploy.",
+    );
+  }
+}
+
+const configuracao = {
   plugins: [react()],
   resolve: {
     alias: {
@@ -41,4 +55,9 @@ export default defineConfig({
       ],
     },
   },
+};
+
+export default defineConfig(({ mode }) => {
+  exigirApiUrlNaVercel(mode);
+  return configuracao;
 });
