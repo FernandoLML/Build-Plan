@@ -85,7 +85,8 @@ async function main() {
         const lote = registros.slice(i, i + CHUNK);
         // Sequencial de propósito: a transação interativa usa uma única conexão
         // e os chunks respeitam o limite de parâmetros do Postgres.
-        await tx.itemSinapi.createMany({ data: lote }); // NOSONAR
+        // (exceção da regra S9382 declarada em sonar-project.properties)
+        await tx.itemSinapi.createMany({ data: lote });
         console.log(`[sinapi] inseridos ${Math.min(i + CHUNK, registros.length)}/${registros.length}`);
       }
     },
