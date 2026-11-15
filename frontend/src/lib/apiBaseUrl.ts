@@ -12,8 +12,14 @@ interface EnvApi {
   PROD?: boolean;
 }
 
+function semBarrasFinais(url: string): string {
+  let fim = url.length;
+  while (fim > 0 && url[fim - 1] === "/") fim--;
+  return url.slice(0, fim);
+}
+
 export function resolverApiBaseUrl(env: EnvApi): string {
-  const informada = env.VITE_API_URL?.trim().replace(/\/+$/, "");
+  const informada = semBarrasFinais(env.VITE_API_URL?.trim() ?? "");
 
   if (!informada) {
     if (env.PROD) {
