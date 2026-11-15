@@ -13,7 +13,7 @@ export function BarraProgresso({
   percentual,
   detalhe,
   cor = "bg-indigo-600",
-}: BarraProgressoProps) {
+}: Readonly<BarraProgressoProps>) {
   const largura = Math.min(100, Math.max(0, percentual));
   return (
     <div className="space-y-1.5">

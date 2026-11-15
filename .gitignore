@@ -12,3 +12,6 @@ postgres_data/
 
 pgadmin_data/
 
+
+# Cache incremental do TypeScript (tsc -b)
+*.tsbuildinfo

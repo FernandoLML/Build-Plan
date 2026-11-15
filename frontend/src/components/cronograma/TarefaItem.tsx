@@ -35,7 +35,7 @@ interface TarefaItemProps {
   desabilitado?: boolean;
 }
 
-export function TarefaItem({ tarefa, onAlterarStatus, onEditar, onExcluir, desabilitado }: TarefaItemProps) {
+export function TarefaItem({ tarefa, onAlterarStatus, onEditar, onExcluir, desabilitado }: Readonly<TarefaItemProps>) {
   const atrasada = estaAtrasada(tarefa);
   const concluida = tarefa.status === "CONCLUIDA";
 
@@ -72,10 +72,9 @@ export function TarefaItem({ tarefa, onAlterarStatus, onEditar, onExcluir, desab
 
       {/* Ações */}
       <div className="flex shrink-0 items-center gap-2">
-        <div
-          role="group"
+        <fieldset
           aria-label={`Alterar status de ${tarefa.titulo}`}
-          className="inline-flex rounded-md border border-slate-800 bg-slate-950 p-0.5"
+          className="inline-flex min-w-0 rounded-md border border-slate-800 bg-slate-950 p-0.5"
         >
           {STATUS_TAREFA.map((s) => {
             const Icone = ICONE_STATUS[s];
@@ -97,7 +96,7 @@ export function TarefaItem({ tarefa, onAlterarStatus, onEditar, onExcluir, desab
               </button>
             );
           })}
-        </div>
+        </fieldset>
         <button
           type="button"
           aria-label={`Editar ${tarefa.titulo}`}

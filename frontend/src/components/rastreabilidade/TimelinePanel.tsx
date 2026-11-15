@@ -18,7 +18,7 @@ interface TimelinePanelProps {
   materialNome?: string;
 }
 
-export function TimelinePanel({ vinculoId, materialNome }: TimelinePanelProps) {
+export function TimelinePanel({ vinculoId, materialNome }: Readonly<TimelinePanelProps>) {
   const { data: logs, isLoading } = useLogsVinculo(vinculoId);
 
   return (
@@ -38,7 +38,7 @@ export function TimelinePanel({ vinculoId, materialNome }: TimelinePanelProps) {
 
           {isLoading && <p className="text-sm text-slate-500">Carregando histórico…</p>}
 
-          {!isLoading && logs && logs.length === 0 && (
+          {!isLoading && logs?.length === 0 && (
             <p className="text-sm text-slate-500">Nenhuma transição registrada ainda.</p>
           )}
 

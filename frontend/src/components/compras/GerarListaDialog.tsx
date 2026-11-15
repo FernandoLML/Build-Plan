@@ -29,7 +29,7 @@ interface GerarListaDialogProps {
   obraId: string;
 }
 
-export function GerarListaDialog({ open, onOpenChange, obraId }: GerarListaDialogProps) {
+export function GerarListaDialog({ open, onOpenChange, obraId }: Readonly<GerarListaDialogProps>) {
   const { data: etapas } = useEtapas(obraId);
   const gerar = useGerarLista(obraId);
   const [etapaId, setEtapaId] = useState<string | undefined>(undefined);

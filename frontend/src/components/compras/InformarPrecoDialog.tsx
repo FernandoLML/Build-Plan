@@ -34,7 +34,7 @@ interface InformarPrecoDialogProps {
   obraId: string;
 }
 
-export function InformarPrecoDialog({ open, onOpenChange, item, obraId }: InformarPrecoDialogProps) {
+export function InformarPrecoDialog({ open, onOpenChange, item, obraId }: Readonly<InformarPrecoDialogProps>) {
   const atualizar = useAtualizarItemCompra(obraId);
   const [erro, setErro] = useState<string | null>(null);
 

@@ -6,17 +6,21 @@
 
 import type { RegimeSinapi } from "@/types/sinapi";
 
-const REGIMES: readonly RegimeSinapi[] = ["DESONERADO", "NAO_DESONERADO"];
+const REGIMES: ReadonlySet<string> = new Set<RegimeSinapi>(["DESONERADO", "NAO_DESONERADO"]);
+
+function ehRegime(valor: string | undefined): valor is RegimeSinapi {
+  return valor !== undefined && REGIMES.has(valor);
+}
 
 export function resolverReferenciaSinapi(env: {
   VITE_SINAPI_UF?: string;
   VITE_SINAPI_REGIME?: string;
 }): { uf: string; regime: RegimeSinapi } {
   const uf = env.VITE_SINAPI_UF?.trim().toUpperCase();
-  const regime = env.VITE_SINAPI_REGIME?.trim().toUpperCase() as RegimeSinapi | undefined;
+  const regime = env.VITE_SINAPI_REGIME?.trim().toUpperCase();
   return {
     uf: uf && /^[A-Z]{2}$/.test(uf) ? uf : "SC",
-    regime: regime && REGIMES.includes(regime) ? regime : "NAO_DESONERADO",
+    regime: ehRegime(regime) ? regime : "NAO_DESONERADO",
   };
 }
 

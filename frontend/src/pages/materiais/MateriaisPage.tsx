@@ -174,7 +174,7 @@ export function MateriaisPage() {
         </div>
       )}
 
-      {!materiais.isLoading && !materiais.isError && materiais.data && materiais.data.length === 0 && (
+      {!materiais.isLoading && !materiais.isError && materiais.data?.length === 0 && (
         <div className="rounded-lg border border-dashed border-slate-800 p-12 text-center">
           <Package className="mx-auto h-10 w-10 text-slate-600" />
           <p className="mt-3 font-medium text-slate-200">Catálogo vazio</p>

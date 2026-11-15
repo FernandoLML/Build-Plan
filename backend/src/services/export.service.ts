@@ -27,7 +27,7 @@ const CABECALHO = [
 // Escapa um campo CSV: envolve em aspas se contiver vírgula, aspas ou quebra de linha.
 function escaparCampo(valor: string): string {
   if (/[",\r\n]/.test(valor)) {
-    return `"${valor.replace(/"/g, '""')}"`;
+    return `"${valor.replaceAll('"', '""')}"`;
   }
   return valor;
 }

@@ -15,7 +15,7 @@ interface ObraCardProps {
   onExcluir: (obra: Obra) => void;
 }
 
-export function ObraCard({ obra, ativa, progresso, onSelecionar, onEditar, onExcluir }: ObraCardProps) {
+export function ObraCard({ obra, ativa, progresso, onSelecionar, onEditar, onExcluir }: Readonly<ObraCardProps>) {
   return (
     <div
       className={`flex flex-col justify-between rounded-xl border bg-slate-900 p-5 transition-colors ${

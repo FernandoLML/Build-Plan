@@ -9,7 +9,7 @@ import type { CreateObraInput, UpdateObraInput } from "../schemas/obra.schema.js
 export class ObraService {
   /** Lista todas as obras pertencentes ao usuário autenticado. */
   public async listar(usuarioId: string) {
-    return prisma.obra.findMany({
+    return await prisma.obra.findMany({
       where: { usuarioId },
       orderBy: { createdAt: "desc" },
     });
@@ -30,7 +30,7 @@ export class ObraService {
 
   /** Cria uma nova obra vinculada ao usuário. */
   public async criar(usuarioId: string, data: CreateObraInput) {
-    return prisma.obra.create({
+    return await prisma.obra.create({
       data: { ...data, usuarioId },
     });
   }

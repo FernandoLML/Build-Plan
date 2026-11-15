@@ -35,7 +35,7 @@ interface VincularEtapaDialogProps {
   obraId: string;
 }
 
-export function VincularEtapaDialog({ open, onOpenChange, material, obraId }: VincularEtapaDialogProps) {
+export function VincularEtapaDialog({ open, onOpenChange, material, obraId }: Readonly<VincularEtapaDialogProps>) {
   const { data: etapas } = useEtapas(obraId);
   const criar = useCriarVinculo(obraId);
   const [erro, setErro] = useState<string | null>(null);

@@ -26,7 +26,7 @@ interface EtapaFormDialogProps {
   onCriada?: (etapaId: string) => void; // permite auto-selecionar a etapa criada
 }
 
-export function EtapaFormDialog({ open, onOpenChange, obraId, onCriada }: EtapaFormDialogProps) {
+export function EtapaFormDialog({ open, onOpenChange, obraId, onCriada }: Readonly<EtapaFormDialogProps>) {
   const criar = useCriarEtapa(obraId);
   const [erro, setErro] = useState<string | null>(null);
 

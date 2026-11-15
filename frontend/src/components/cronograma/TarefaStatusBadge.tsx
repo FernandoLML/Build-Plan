@@ -4,7 +4,7 @@
 import { STATUS_TAREFA_CLASSES } from "@/lib/tarefas";
 import { STATUS_TAREFA_LABEL, type StatusTarefa } from "@/types/tarefa";
 
-export function TarefaStatusBadge({ status }: { status: StatusTarefa }) {
+export function TarefaStatusBadge({ status }: Readonly<{ status: StatusTarefa }>) {
   return (
     <span
       data-status={status}

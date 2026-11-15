@@ -27,7 +27,7 @@ export function MaterialDetailPanel({
   onVincular,
   onEditar,
   onExcluir,
-}: MaterialDetailPanelProps) {
+}: Readonly<MaterialDetailPanelProps>) {
   if (!material) {
     return (
       <div className="flex h-full min-h-[240px] flex-col items-center justify-center rounded-lg border border-slate-800 bg-slate-900 p-6 text-center">
@@ -68,11 +68,13 @@ export function MaterialDetailPanel({
           Etapas vinculadas
         </p>
 
-        {carregandoVinculos ? (
-          <p className="text-sm text-slate-500">Carregando vínculos…</p>
-        ) : vinculos.length === 0 ? (
+        {carregandoVinculos && <p className="text-sm text-slate-500">Carregando vínculos…</p>}
+
+        {!carregandoVinculos && vinculos.length === 0 && (
           <p className="text-sm text-slate-500">Este material ainda não está vinculado a etapas.</p>
-        ) : (
+        )}
+
+        {!carregandoVinculos && vinculos.length > 0 && (
           <ul className="space-y-1">
             {vinculos.map((v) => (
               <li

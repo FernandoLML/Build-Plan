@@ -10,7 +10,7 @@ const CLASSES: Record<StatusVinculo, string> = {
   APLICADO: "bg-emerald-500/10 text-emerald-400",
 };
 
-export function StatusBadge({ status }: { status: StatusVinculo }) {
+export function StatusBadge({ status }: Readonly<{ status: StatusVinculo }>) {
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${CLASSES[status]}`}>
       {STATUS_LABEL[status]}

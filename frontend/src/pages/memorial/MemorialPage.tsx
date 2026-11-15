@@ -220,7 +220,7 @@ export function MemorialPage() {
               </>
             )}
 
-            {preview.data && preview.data.itens.length === 0 && (
+            {preview.data?.itens.length === 0 && (
               <p className="text-sm text-slate-500">
                 Nenhum item válido foi extraído. Confira o cabeçalho e o conteúdo do CSV.
               </p>

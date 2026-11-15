@@ -16,7 +16,7 @@ function lerObraSalva(): string | null {
   }
 }
 
-export function ObraProvider({ children }: { children: ReactNode }) {
+export function ObraProvider({ children }: Readonly<{ children: ReactNode }>) {
   // Restaura a obra ativa salva já no primeiro render (inicialização lazy),
   // sem o render extra de um useEffect + setState.
   const [obraAtivaId, setObraAtivaId] = useState<string | null>(() => lerObraSalva());

@@ -11,7 +11,7 @@ import { AppError } from "../errors/app-error.js";
 export function authMiddleware(req: Request, _res: Response, next: NextFunction): void {
   const header = req.header("authorization");
 
-  if (!header || !header.startsWith("Bearer ")) {
+  if (!header?.startsWith("Bearer ")) {
     throw new AppError("Token de autenticação ausente.", 401);
   }
 

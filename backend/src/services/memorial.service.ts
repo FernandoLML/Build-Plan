@@ -70,9 +70,9 @@ function dividirLinha(linha: string, delimitador: string): string[] {
 // Converte quantidade textual (pt-BR ou en) em número. "1.234,5" -> 1234.5
 function parseQuantidade(bruto: string): number {
   let s = bruto.trim();
-  if (!s) return NaN;
+  if (!s) return Number.NaN;
   if (s.includes(",") && s.includes(".")) {
-    s = s.replace(/\./g, "").replace(",", ".");
+    s = s.replaceAll(".", "").replace(",", ".");
   } else if (s.includes(",")) {
     s = s.replace(",", ".");
   }
@@ -115,8 +115,10 @@ export class MemorialService {
     // Detecta o delimitador pelo cabeçalho (maior ocorrência entre ; , e tab).
     const cabecalhoBruto = linhas[0];
     const candidatos = [";", ",", "\t"];
-    const delimitador = candidatos.reduce((melhor, d) =>
-      cabecalhoBruto.split(d).length > cabecalhoBruto.split(melhor).length ? d : melhor,
+    const delimitador = candidatos.reduce(
+      (melhor, d) =>
+        cabecalhoBruto.split(d).length > cabecalhoBruto.split(melhor).length ? d : melhor,
+      candidatos[0],
     );
 
     // Mapeia índice da coluna -> campo canônico.
@@ -155,7 +157,7 @@ export class MemorialService {
         nome: pegar("nome"),
         especificacao: pegar("especificacao"),
         unidade: pegar("unidade"),
-        quantidade: colunas.quantidade !== undefined ? parseQuantidade(celulas[colunas.quantidade] ?? "") : NaN,
+        quantidade: colunas.quantidade !== undefined ? parseQuantidade(celulas[colunas.quantidade] ?? "") : Number.NaN,
         codigoSinapi: pegar("codigoSinapi"),
       };
 

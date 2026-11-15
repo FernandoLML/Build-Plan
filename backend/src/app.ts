@@ -16,13 +16,21 @@ import { listaRoutes } from "./routes/lista-compras.routes.js";
 import { itemRoutes } from "./routes/item-compra.routes.js";
 import { sinapiRouter } from "./modules/sinapi/sinapi.routes.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
+import { env } from "./config/env.js";
 
 export function createApp(): Application {
   const app = express();
 
   // Middlewares globais
   app.use(helmet());
-  app.use(cors());
+  // CORS restrito a uma allowlist explícita (CORS_ORIGINS), em vez de "*".
+  app.use(
+    cors({
+      origin: env.CORS_ORIGINS,
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+      allowedHeaders: ["Content-Type", "Authorization"],
+    }),
+  );
   app.use(express.json({ limit: "1mb" }));
   // UC01: aceita o Memorial Descritivo colado como texto cru (CSV).
   app.use(express.text({ type: ["text/csv", "text/plain"], limit: "2mb" }));

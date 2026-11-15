@@ -11,6 +11,20 @@ import {
 } from "@/components/ui/table";
 import type { ItemMemorial } from "@/types/memorial";
 
+/**
+ * Chave estável por linha, derivada do conteúdo do item (o preview não traz id).
+ * Itens idênticos recebem um sufixo de ocorrência para manter a unicidade.
+ */
+function chavesDosItens(itens: readonly ItemMemorial[]): string[] {
+  const ocorrencias = new Map<string, number>();
+  return itens.map((item) => {
+    const base = [item.nome, item.especificacao ?? "", item.unidade, item.quantidade, item.codigoSinapi ?? ""].join("|");
+    const n = (ocorrencias.get(base) ?? 0) + 1;
+    ocorrencias.set(base, n);
+    return `${base}#${n}`;
+  });
+}
+
 interface TabelaMateriaisExtraidosProps {
   itens: ItemMemorial[];
   selecionados: boolean[];
@@ -21,7 +35,10 @@ export function TabelaMateriaisExtraidos({
   itens,
   selecionados,
   onToggle,
-}: TabelaMateriaisExtraidosProps) {
+}: Readonly<TabelaMateriaisExtraidosProps>) {
+  const chaves = chavesDosItens(itens);
+  const linhas = itens.map((item, index) => ({ item, index, chave: chaves[index] }));
+
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <Table>
@@ -36,8 +53,8 @@ export function TabelaMateriaisExtraidos({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {itens.map((item, index) => (
-            <TableRow key={index} data-state={selecionados[index] ? "selected" : undefined}>
+          {linhas.map(({ item, index, chave }) => (
+            <TableRow key={chave} data-state={selecionados[index] ? "selected" : undefined}>
               <TableCell>
                 <input
                   type="checkbox"
