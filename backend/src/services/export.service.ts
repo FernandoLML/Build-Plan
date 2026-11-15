@@ -1,9 +1,22 @@
 // Caminho: /backend/src/services/export.service.ts
 // Exportação de relatórios (M5 — Workstream B). Gera o CSV da lista de compras
-// nativamente (sem dependências), validando ownership da lista.
+// nativamente (sem dependências) e, na Etapa 4, as versões profissionais em
+// .xlsx (exceljs) e .pdf (pdfkit). Todas validam o ownership da lista (404).
 
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../errors/app-error.js";
+import {
+  nomeArquivoExportacao,
+  paraItemExportacao,
+  type ListaComprasExportacao,
+} from "./export/lista-compras.dados.js";
+import { gerarXlsxListaCompras } from "./export/lista-compras.xlsx.js";
+import { gerarPdfListaCompras } from "./export/lista-compras.pdf.js";
+
+export interface ArquivoExportado {
+  nomeArquivo: string;
+  conteudo: Buffer;
+}
 
 // Item com os campos necessários ao CSV (Decimais expõem toString()).
 interface ItemCsv {
@@ -64,6 +77,63 @@ export class ExportService {
     }
 
     return montarCsv(lista.itens);
+  }
+
+  /** Gera a planilha .xlsx estilizada da lista de compras (404 se não for do usuário). */
+  public async exportarListaComprasXlsx(listaId: string, usuarioId: string): Promise<ArquivoExportado> {
+    const dados = await this.carregarDadosExportacao(listaId, usuarioId);
+    return {
+      nomeArquivo: nomeArquivoExportacao(dados.etapaNome, "xlsx"),
+      conteudo: await gerarXlsxListaCompras(dados),
+    };
+  }
+
+  /** Gera o PDF da lista de compras (404 se não for do usuário). */
+  public async exportarListaComprasPdf(listaId: string, usuarioId: string): Promise<ArquivoExportado> {
+    const dados = await this.carregarDadosExportacao(listaId, usuarioId);
+    return {
+      nomeArquivo: nomeArquivoExportacao(dados.etapaNome, "pdf"),
+      conteudo: await gerarPdfListaCompras(dados),
+    };
+  }
+
+  /**
+   * Carrega lista + obra + etapa e resolve o código SINAPI de cada item pelo
+   * material de origem (uma única query extra, sem N+1).
+   */
+  private async carregarDadosExportacao(listaId: string, usuarioId: string): Promise<ListaComprasExportacao> {
+    const lista = await prisma.listaCompras.findFirst({
+      where: { id: listaId, obra: { usuarioId } },
+      include: {
+        obra: { select: { nome: true } },
+        etapa: { select: { nome: true } },
+        itens: { orderBy: { createdAt: "asc" } },
+      },
+    });
+
+    if (!lista) {
+      throw new AppError("Lista de compras não encontrada.", 404);
+    }
+
+    const materialIds = [
+      ...new Set(lista.itens.map((i) => i.materialId).filter((id): id is string => id !== null)),
+    ];
+    const materiais =
+      materialIds.length > 0
+        ? await prisma.material.findMany({
+            where: { id: { in: materialIds }, obraId: lista.obraId },
+            select: { id: true, codigoSinapi: true },
+          })
+        : [];
+    const codigos = new Map(materiais.map((m) => [m.id, m.codigoSinapi]));
+
+    return {
+      obraNome: lista.obra.nome,
+      etapaNome: lista.etapa?.nome ?? "Geral",
+      geradaEm: lista.geradaEm,
+      emitidaEm: new Date(),
+      itens: lista.itens.map((item) => paraItemExportacao(item, codigos)),
+    };
   }
 }
 

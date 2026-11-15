@@ -40,4 +40,16 @@ export const comprasApi = {
     });
     return data;
   },
+
+  // GET /api/listas-compras/:id/export.xlsx  (planilha estilizada, binário)
+  async exportarXlsx(id: string): Promise<Blob> {
+    const { data } = await api.get<Blob>(`/listas-compras/${id}/export.xlsx`, { responseType: "blob" });
+    return data;
+  },
+
+  // GET /api/listas-compras/:id/export.pdf  (documento para impressão, binário)
+  async exportarPdf(id: string): Promise<Blob> {
+    const { data } = await api.get<Blob>(`/listas-compras/${id}/export.pdf`, { responseType: "blob" });
+    return data;
+  },
 };
