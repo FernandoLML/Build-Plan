@@ -3,7 +3,10 @@
 // Garante banco limpo antes de cada teste e desconecta ao final.
 
 import { beforeEach, afterAll } from "@jest/globals";
-import { resetDatabase, disconnect } from "./helpers/test-db.js";
+import { resetDatabase, disconnect, garantirBancoDeTeste } from "./helpers/test-db.js";
+
+// Falha o arquivo inteiro antes de qualquer limpeza se o banco não for de teste.
+garantirBancoDeTeste();
 
 beforeEach(async () => {
   await resetDatabase();

@@ -1,10 +1,10 @@
 // Caminho: /frontend/src/pages/compras/ComprasPage.test.tsx
 // Testes da Tela 5 — Lista de Compras: banner de itens sem cotação, exibição do
 // total orçado (snapshot congelado no backend) e cobertura derivada no cliente,
-// e abertura do diálogo "Informar preço".
+// abertura do diálogo "Informar preço" e exportação (.xlsx / .pdf / .csv).
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { renderComProviders } from "@/test/utils";
@@ -30,6 +30,8 @@ vi.mock("@/api/compras", () => ({
     atualizarItem: vi.fn(),
     excluirItem: vi.fn(),
     exportarCsv: vi.fn(),
+    exportarXlsx: vi.fn(),
+    exportarPdf: vi.fn(),
   },
 }));
 vi.mock("@/api/materiais", () => ({
@@ -147,5 +149,102 @@ describe("ComprasPage", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Informar preço")).toBeInTheDocument();
     expect(within(dialog).getByText(/Preço unitário/)).toBeInTheDocument();
+  });
+});
+
+describe("ComprasPage — exportação", () => {
+  const createObjectURL = vi.fn<(blob: Blob) => string>(() => "blob:lista");
+  const revokeObjectURL = vi.fn();
+  const urlOriginal = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
+  let cliques: HTMLAnchorElement[];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    URL.createObjectURL = createObjectURL as unknown as typeof URL.createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL;
+    cliques = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      cliques.push(this);
+    });
+    vi.mocked(etapasApi.listar).mockResolvedValue([etapa]);
+    vi.mocked(comprasApi.listarPorObra).mockResolvedValue([listaBase(1, itensComPendencia)]);
+  });
+
+  afterEach(() => {
+    URL.createObjectURL = urlOriginal.create;
+    URL.revokeObjectURL = urlOriginal.revoke;
+    vi.restoreAllMocks();
+  });
+
+  async function renderizarEsperandoEtapa() {
+    const user = userEvent.setup();
+    renderComProviders(<ComprasPage />);
+    await screen.findByText("Cimento CP-II");
+    // O nome do arquivo usa o nome da etapa, que chega na query de etapas.
+    await screen.findByRole("button", { name: "Fundação" });
+    return user;
+  }
+
+  it("baixa a planilha .xlsx da lista com o nome da etapa", async () => {
+    const planilha = new Blob(["xlsx"], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    vi.mocked(comprasApi.exportarXlsx).mockResolvedValue(planilha);
+    const user = await renderizarEsperandoEtapa();
+
+    await user.click(screen.getByRole("button", { name: /Exportar Excel \(\.xlsx\)/ }));
+
+    await waitFor(() => expect(cliques).toHaveLength(1));
+    expect(comprasApi.exportarXlsx).toHaveBeenCalledWith("lista-1");
+    expect(createObjectURL).toHaveBeenCalledWith(planilha);
+    expect(cliques[0].download).toBe("lista-compras-fundacao.xlsx");
+    expect(cliques[0].href).toBe("blob:lista");
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:lista");
+  });
+
+  it("baixa o PDF da lista", async () => {
+    vi.mocked(comprasApi.exportarPdf).mockResolvedValue(new Blob(["%PDF"], { type: "application/pdf" }));
+    const user = await renderizarEsperandoEtapa();
+
+    await user.click(screen.getByRole("button", { name: /Exportar PDF/ }));
+
+    await waitFor(() => expect(cliques).toHaveLength(1));
+    expect(comprasApi.exportarPdf).toHaveBeenCalledWith("lista-1");
+    expect(cliques[0].download).toBe("lista-compras-fundacao.pdf");
+  });
+
+  it("mantém a exportação CSV", async () => {
+    vi.mocked(comprasApi.exportarCsv).mockResolvedValue("Descricao,Unidade");
+    const user = await renderizarEsperandoEtapa();
+
+    await user.click(screen.getByRole("button", { name: /Exportar CSV/ }));
+
+    await waitFor(() => expect(cliques).toHaveLength(1));
+    expect(comprasApi.exportarCsv).toHaveBeenCalledWith("lista-1");
+    expect(cliques[0].download).toBe("lista-compras-fundacao.csv");
+  });
+
+  it("mostra 'Exportando…' e bloqueia os botões durante o download", async () => {
+    let concluir: (blob: Blob) => void = () => {};
+    vi.mocked(comprasApi.exportarXlsx).mockReturnValue(new Promise<Blob>((resolve) => (concluir = resolve)));
+    const user = await renderizarEsperandoEtapa();
+
+    await user.click(screen.getByRole("button", { name: /Exportar Excel/ }));
+
+    expect(await screen.findByRole("button", { name: /Exportando/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Exportar PDF/ })).toBeDisabled();
+
+    concluir(new Blob(["x"]));
+    expect(await screen.findByRole("button", { name: /Exportar Excel/ })).toBeEnabled();
+  });
+
+  it("exibe erro quando a exportação falha, sem disparar download", async () => {
+    vi.mocked(comprasApi.exportarXlsx).mockRejectedValue(new Error("500"));
+    const user = await renderizarEsperandoEtapa();
+
+    await user.click(screen.getByRole("button", { name: /Exportar Excel/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível exportar a lista.");
+    expect(cliques).toHaveLength(0);
   });
 });

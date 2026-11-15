@@ -1,5 +1,5 @@
 // Caminho: /backend/src/routes/lista-compras.routes.ts
-// Rotas de Lista de Compras (M4 Fase 2) + exportação CSV (M5 Workstream B).
+// Rotas de Lista de Compras (M4 Fase 2) + exportação CSV (M5) / .xlsx e .pdf (Etapa 4).
 //  - etapaListaRoutes: geração aninhada em /api/etapas/:etapaId/lista-compras (mergeParams).
 //  - obraListaRoutes: listagem aninhada em /api/obras/:obraId/listas-compras (mergeParams).
 //  - listaRoutes: recursos individuais em /api/listas-compras/:id (+ itens aninhados + export).
@@ -28,6 +28,9 @@ listaRoutes.delete("/:id", asyncHandler((req, res) => listaComprasController.rem
 
 // Exportação CSV: /api/listas-compras/:id/export.csv
 listaRoutes.get("/:id/export.csv", asyncHandler((req, res) => exportController.listaComprasCsv(req, res)));
+// Exportações profissionais (Etapa 4): planilha estilizada e PDF para impressão.
+listaRoutes.get("/:id/export.xlsx", asyncHandler((req, res) => exportController.listaComprasXlsx(req, res)));
+listaRoutes.get("/:id/export.pdf", asyncHandler((req, res) => exportController.listaComprasPdf(req, res)));
 
 // Itens aninhados: /api/listas-compras/:listaId/itens
 listaRoutes.use("/:listaId/itens", listaItemRoutes);

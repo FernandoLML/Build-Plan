@@ -3,17 +3,16 @@
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, Download, Loader2, Plus, ShoppingCart, Trash2 } from "lucide-react";
+import { AlertTriangle, Loader2, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useObraAtiva } from "@/contexts/useObraAtiva";
 import { useListasCompras, useExcluirItemCompra, useExcluirLista } from "@/hooks/useCompras";
 import { useEtapas } from "@/hooks/useMateriais";
-import { comprasApi } from "@/api/compras";
-import { baixarArquivo } from "@/lib/download";
 import { formatarMoeda } from "@/lib/format";
 import { GerarListaDialog } from "@/components/compras/GerarListaDialog";
 import { InformarPrecoDialog } from "@/components/compras/InformarPrecoDialog";
+import { ExportacaoCard } from "@/components/compras/ExportacaoCard";
 import type { ItemCompra } from "@/types/compras";
 
 export function ComprasPage() {
@@ -26,7 +25,6 @@ export function ComprasPage() {
   const [gerarOpen, setGerarOpen] = useState(false);
   const [listaSelId, setListaSelId] = useState<string | null>(null);
   const [itemEditando, setItemEditando] = useState<ItemCompra | null>(null);
-  const [exportando, setExportando] = useState(false);
 
   if (!obraAtivaId) {
     return (
@@ -46,16 +44,6 @@ export function ComprasPage() {
 
   const dados = listas.data ?? [];
   const listaAtual = dados.find((l) => l.id === listaSelId) ?? dados[0] ?? null;
-
-  async function exportar(id: string) {
-    setExportando(true);
-    try {
-      const csv = await comprasApi.exportarCsv(id);
-      baixarArquivo(`lista-compras-${id}.csv`, csv);
-    } finally {
-      setExportando(false);
-    }
-  }
 
   const cobertura =
     listaAtual && listaAtual.totais.totalItens > 0
@@ -231,33 +219,16 @@ export function ComprasPage() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base text-slate-100">Exportação</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => exportar(listaAtual.id)}
-                  disabled={exportando}
-                >
-                  <Download className="mr-1 h-4 w-4" /> {exportando ? "Exportando…" : "Exportar CSV"}
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full text-red-400 hover:text-red-300"
-                  onClick={() => {
-                    if (window.confirm("Excluir esta lista de compras?")) {
-                      excluirLista.mutate(listaAtual.id);
-                      setListaSelId(null);
-                    }
-                  }}
-                >
-                  <Trash2 className="mr-1 h-4 w-4" /> Excluir lista
-                </Button>
-              </CardContent>
-            </Card>
+            <ExportacaoCard
+              listaId={listaAtual.id}
+              etapaNome={nomeEtapa(listaAtual.etapaId)}
+              onExcluir={() => {
+                if (window.confirm("Excluir esta lista de compras?")) {
+                  excluirLista.mutate(listaAtual.id);
+                  setListaSelId(null);
+                }
+              }}
+            />
           </div>
         </div>
       )}
