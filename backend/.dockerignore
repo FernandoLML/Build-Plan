@@ -1,0 +1,12 @@
+# Mantém a imagem pequena e sem segredos: só o necessário para build e runtime.
+node_modules
+dist
+coverage
+.env
+.env.*
+!.env.example
+*.log
+.git
+.gitignore
+Dockerfile
+.dockerignore

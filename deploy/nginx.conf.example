@@ -1,0 +1,65 @@
+# Caminho: /deploy/nginx.conf.example
+# Reverse proxy do Nginx (host da EC2) para a API Node em 127.0.0.1:3333.
+#
+# Instalação:
+#   sudo cp nginx.conf.example /etc/nginx/sites-available/buildplan
+#   sudo sed -i 's/api.SEU-DOMINIO.com/SEU_DOMINIO_REAL/g' /etc/nginx/sites-available/buildplan
+#   sudo ln -s /etc/nginx/sites-available/buildplan /etc/nginx/sites-enabled/buildplan
+#   sudo unlink /etc/nginx/sites-enabled/default
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# HTTPS: este arquivo começa só com HTTP (porta 80). O Certbot acrescenta o
+# bloco 443, os certificados e o redirect 80 -> 443 automaticamente:
+#   sudo certbot --nginx -d api.SEU-DOMINIO.com
+
+# Não revela a versão do Nginx em headers e páginas de erro.
+server_tokens off;
+
+upstream buildplan_api {
+    server 127.0.0.1:3333;
+    keepalive 16;
+}
+
+# Requisições sem o domínio correto (scanners batendo direto no IP): encerra
+# a conexão sem resposta.
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    return 444;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name api.SEU-DOMINIO.com;
+
+    # Igual ao maior corpo aceito pela API (memorial em CSV: 2 MB).
+    client_max_body_size 2m;
+
+    # /metrics (futuro: Prometheus) nunca fica público — só a própria máquina.
+    # Para liberar um coletor externo, acrescente "allow <IP>;" antes do deny.
+    location = /metrics {
+        allow 127.0.0.1;
+        allow ::1;
+        deny all;
+        proxy_pass http://buildplan_api;
+    }
+
+    location / {
+        proxy_pass http://buildplan_api;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        # A API usa estes headers (trust proxy = 1) para saber o IP real do
+        # cliente (rate limit) e que a conexão original era HTTPS.
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+    }
+}

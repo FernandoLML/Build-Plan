@@ -16,21 +16,68 @@ import { listaRoutes } from "./routes/lista-compras.routes.js";
 import { itemRoutes } from "./routes/item-compra.routes.js";
 import { sinapiRouter } from "./modules/sinapi/sinapi.routes.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
+import { criarLimitadores, type LimitesRateLimit } from "./middlewares/rate-limit.middleware.js";
 import { env } from "./config/env.js";
 
-export function createApp(): Application {
-  const app = express();
+export interface AppOptions {
+  /** Liga o rate limiting. Default: ligado, exceto em NODE_ENV=test. */
+  rateLimit?: boolean;
+  /** Sobrescreve os limites padrão (usado nos testes). */
+  limites?: LimitesRateLimit;
+  /** Nº de proxies confiáveis (X-Forwarded-For). Default: env.TRUST_PROXY. */
+  trustProxy?: number;
+}
 
-  // Middlewares globais
-  app.use(helmet());
+export function createApp(opcoes: AppOptions = {}): Application {
+  const app = express();
+  const rateLimitAtivo = opcoes.rateLimit ?? env.NODE_ENV !== "test";
+
+  // Atrás do Nginx (EC2), o IP real do cliente chega em X-Forwarded-For. Só
+  // confiamos em N saltos (1 = o Nginx); com 0 o header é ignorado, evitando
+  // que um cliente forje o IP para escapar do rate limit quando não há proxy.
+  app.set("trust proxy", opcoes.trustProxy ?? env.TRUST_PROXY);
+
+  // Headers de segurança HTTP. A API só devolve JSON e arquivos para download,
+  // então a CSP bloqueia tudo (nada aqui deve ser renderizado como página).
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        useDefaults: false,
+        directives: {
+          defaultSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+          baseUri: ["'none'"],
+          formAction: ["'none'"],
+        },
+      },
+      // O frontend fica em outra origem (Vercel): as respostas precisam poder
+      // ser lidas cross-origin. Quem decide QUAIS origens é o CORS abaixo.
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+      // HSTS só tem efeito sobre HTTPS (terminado no Nginx); 1 ano.
+      strictTransportSecurity: { maxAge: 31536000, includeSubDomains: true },
+      referrerPolicy: { policy: "no-referrer" },
+    }),
+  );
   // CORS restrito a uma allowlist explícita (CORS_ORIGINS), em vez de "*".
   app.use(
     cors({
       origin: env.CORS_ORIGINS,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
       allowedHeaders: ["Content-Type", "Authorization"],
+      // Permite ao frontend ler o nome do arquivo e o tempo de espera do 429.
+      exposedHeaders: ["Content-Disposition", "Retry-After"],
     }),
   );
+
+  // Rate limiting (depois do CORS, para o 429 também sair com os headers de
+  // CORS; antes dos parsers, para rejeitar sem ler o corpo).
+  if (rateLimitAtivo) {
+    const limitadores = criarLimitadores(opcoes.limites);
+    app.use("/api", limitadores.geral);
+    app.use("/api/auth/login", limitadores.login);
+    app.use("/api/auth/register", limitadores.cadastro);
+  }
+
   app.use(express.json({ limit: "1mb" }));
   // UC01: aceita o Memorial Descritivo colado como texto cru (CSV).
   app.use(express.text({ type: ["text/csv", "text/plain"], limit: "2mb" }));

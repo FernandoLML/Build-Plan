@@ -4,8 +4,9 @@
 
 import axios, { AxiosError } from "axios";
 import { tokenStorage } from "./token";
+import { resolverApiBaseUrl } from "./apiBaseUrl";
 
-const baseURL = import.meta.env.VITE_API_URL ?? "http://localhost:3333/api";
+const baseURL = resolverApiBaseUrl(import.meta.env);
 
 export const api = axios.create({
   baseURL,
