@@ -36,6 +36,15 @@ function ehOrigemValida(origem: string): boolean {
   }
 }
 
+/** Explica por que a origem foi recusada (o navegador sempre envia o host em minúsculas). */
+function mensagemOrigemInvalida(origem: string): string {
+  const minusculas = origem.toLowerCase();
+  if (minusculas !== origem && ehOrigemValida(minusculas)) {
+    return `Origem inválida: "${origem}". Use apenas letras minúsculas: "${minusculas}".`;
+  }
+  return `Origem inválida: "${origem}". Use o formato https://dominio (em minúsculas, sem barra no final).`;
+}
+
 function ehOrigemDeProducao(origem: string): boolean {
   const url = new URL(origem);
   return url.protocol === "https:" && url.hostname !== "localhost" && url.hostname !== "127.0.0.1";
@@ -77,7 +86,7 @@ const envSchema = z
     }
     for (const origem of dados.CORS_ORIGINS) {
       if (origem !== "*" && !ehOrigemValida(origem)) {
-        erro("CORS_ORIGINS", `Origem inválida: "${origem}". Use o formato https://dominio (sem barra no final).`);
+        erro("CORS_ORIGINS", mensagemOrigemInvalida(origem));
       }
     }
 

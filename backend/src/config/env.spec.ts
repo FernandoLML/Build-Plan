@@ -68,6 +68,12 @@ describe("validarEnv — regras gerais", () => {
     expect(erros({ ...DEV, CORS_ORIGINS: "ftp://app.exemplo.com" }).CORS_ORIGINS[0]).toContain("Origem inválida");
   });
 
+  it("explica quando a origem do CORS só falha por ter letras maiúsculas", () => {
+    const [mensagem] = erros({ ...DEV, CORS_ORIGINS: "https://Meu-Projeto.vercel.app" }).CORS_ORIGINS;
+    expect(mensagem).toContain("minúsculas");
+    expect(mensagem).toContain('"https://meu-projeto.vercel.app"');
+  });
+
   it("valida PORT e TRUST_PROXY", () => {
     expect(valido({ ...DEV, PORT: "8080", TRUST_PROXY: "2" })).toMatchObject({ PORT: 8080, TRUST_PROXY: 2 });
     expect(erros({ ...DEV, PORT: "70000" }).PORT).toBeDefined();

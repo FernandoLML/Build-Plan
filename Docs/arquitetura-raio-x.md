@@ -1,7 +1,7 @@
 # Build-Plan — Raio-X Arquitetural e Técnico
 
-> **Documento vivo** · Última revisão em 2026-11-12, com base no `main` (commit `6912b19`, pós-merge do PR #23 — débitos técnicos da N2) **mais** a branch `chore-sonarqube-quality` (Etapa 3 — cobertura, lint no CI e SonarCloud). Ver [Histórico de revisões](#histórico-de-revisões).
-> Objetivo: consolidar decisões, padrões e convenções dos marcos M1–M7 + SINAPI (catálogo, importador, precificação automática) + Cronograma/Tarefas e servir de mapa para as próximas fases.
+> **Documento vivo** · Última revisão em 2026-11-16, com base no `main` (commit `1d7046c`, pós-merge do PR #27 — hardening e deploy) **mais** a branch `chore-pos-deploy` (backup e ajustes do primeiro deploy). Ver [Histórico de revisões](#histórico-de-revisões).
+> Objetivo: consolidar decisões, padrões e convenções dos marcos M1–M7 + SINAPI (catálogo, importador, precificação automática) + Cronograma/Tarefas + exportações + segurança e produção, e servir de mapa para as próximas fases.
 > Documentos relacionados: [RFC.md](RFC.md) · [marco-m4-consolidacao.md](marco-m4-consolidacao.md) · [marco-m5-consolidacao.md](marco-m5-consolidacao.md) · [frontend-consolidacao.md](frontend-consolidacao.md) · [registro-comparacao.md](registro-comparacao.md)
 
 ---
@@ -12,10 +12,12 @@
 |---|---|
 | **Arquitetura** | Monorepo com dois pacotes independentes (`backend/`, `frontend/`), cada um com `package.json` e lockfile próprios. Sem workspace raiz. |
 | **Backend** | API REST em Express 4 + TypeScript (ESM/NodeNext), camadas *schema Zod → controller → service → Prisma*. Autenticação JWT HS256 stateless. |
-| **Persistência** | PostgreSQL 16 via Prisma 6. 10 models, 7 enums, 4 migrações. Busca textual SINAPI com `pg_trgm` + índice GIN; correspondência de código via `codigoNormalizado`. |
+| **Persistência** | PostgreSQL via Prisma 6 (16 em desenvolvimento e CI, 17 em produção). 10 models, 7 enums, 4 migrações. Busca textual SINAPI com `pg_trgm` + índice GIN; correspondência de código via `codigoNormalizado`. |
 | **Frontend** | SPA React 19 + Vite 8, TanStack Query 5 para estado de servidor, Context API para sessão e obra ativa, shadcn/ui (Radix) + Tailwind 3. |
-| **Testes** | Backend: Jest + Supertest contra **banco real** (sem mocks de Prisma) — 14 suítes / 135 casos. Frontend: Vitest + Testing Library em jsdom, com mocks da camada `api/` — 17 arquivos / 96 casos. ESLint do frontend zerado. |
-| **CI/CD** | 2 workflows GitHub Actions: `ci.yml` (lint · typecheck · testes com cobertura no backend e no frontend + análise SonarCloud) e a importação mensal agendada do SINAPI. |
+| **Testes** | Backend: Jest + Supertest contra **banco real** (sem mocks de Prisma) — 21 suítes / 190 casos. Frontend: Vitest + Testing Library em jsdom, com mocks da camada `api/` — 24 arquivos / 132 casos. ESLint do frontend zerado. |
+| **CI/CD** | 2 workflows GitHub Actions: `ci.yml` (lint · typecheck · testes com cobertura no backend e no frontend + análise SonarCloud) e a importação mensal agendada do SINAPI. Frontend publicado pela Vercel a cada push na `main`; backend atualizado manualmente na EC2. |
+| **Produção** | No ar desde 2026-11-16. Frontend na Vercel (`https://build-plan-two.vercel.app`); API e PostgreSQL 17 em Docker Compose numa EC2 Ubuntu, atrás de Nginx com HTTPS (`https://buildplan-api.duckdns.org/api`). Ver §5.4. |
+| **Segurança** | helmet (CSP, HSTS), CORS por allowlist, rate limit por IP, validação fail-fast do ambiente, contêiner sem root e sem portas públicas além de 80/443. |
 | **Domínio** | Usuário → Obras → Etapas → Tarefas (cronograma e progresso físico); Materiais (catálogo por obra) vinculados a Etapas com máquina de estados auditada; Listas de Compras como snapshot, precificadas automaticamente pelo catálogo SINAPI. |
 
 ```mermaid
@@ -24,7 +26,7 @@ flowchart LR
     SPA["SPA React 19<br/>(Vite · TanStack Query)"]
   end
   subgraph API["backend · Express 4"]
-    MW["helmet · cors · json/text parsers"]
+    MW["helmet · cors · rate limit · json/text parsers"]
     R["Routers /api/*"]
     AUTH["authMiddleware (JWT)"]
     C["Controllers (Zod parse)"]
@@ -66,13 +68,16 @@ flowchart LR
 | `zod` | ^3.23 | Validação de body/params/query **e** das variáveis de ambiente (`config/env.ts`). |
 | `jsonwebtoken` | ^9.0 | Emissão/verificação de JWT HS256. |
 | `bcrypt` | ^5.1 | Hash de senha (custo **12**, exigência do RFC §6.1). |
-| `helmet` | ^7.1 | Cabeçalhos de segurança HTTP. |
+| `helmet` | ^7.1 | Cabeçalhos de segurança HTTP (CSP `default-src 'none'`, HSTS de 1 ano, `no-referrer`). |
 | `cors` | ^2.8 | CORS restrito à allowlist `CORS_ORIGINS` (métodos e headers explícitos). |
+| `express-rate-limit` | ^8.7 | Limite de requisições por IP (`middlewares/rate-limit.middleware.ts`). |
+| `exceljs` | ^4.4 | Geração do `.xlsx` da lista de compras (com `overrides` fixando `uuid` 11.1.1). |
+| `pdfkit` | ^0.20 | Geração do `.pdf` da lista de compras. |
 | `dotenv` / `dotenv-cli` | ^16.4 / ^7.4 | Carga de `.env` (app) e `.env.test` (scripts de teste). |
 | `@prisma/client` | ^6.0 | Acesso a dados (singleton em `lib/prisma.ts`). |
 
 **Tratamento assíncrono:** não há `express-async-errors`; usa-se o wrapper próprio `asyncHandler` (ver §3.4).
-**Sem dependências para CSV:** parsing do Memorial e exportação de listas são implementados nativamente.
+**Sem dependências para CSV:** o parsing do Memorial e a exportação de listas em CSV são implementados nativamente.
 **Leitura de planilhas:** `xlsx` `^0.18.5` entra em `devDependencies`, pois só o importador SINAPI o usa (nenhuma rota da API o carrega). O `npm audit` aponta vulnerabilidades altas sem correção disponível no npm (ver §7, item 16).
 
 ### 1.3 Frontend — bibliotecas de runtime
@@ -101,7 +106,8 @@ flowchart LR
 | Desenvolvimento | `buildplan_db`, `schema=public` | `backend/.env` (modelo em `.env.example`) |
 | Testes locais | mesmo servidor, **`schema=test_buildplan`** | `backend/.env.test` (não versionado) |
 | CI `ci.yml` (job `backend`) | `buildplan_test`, `schema=public` | variáveis do job |
-| Produção (import SINAPI) | `secrets.DATABASE_URL` | workflow `sinapi-import.yml` |
+| Produção | `buildplan`, `schema=public` (PostgreSQL 17, volume `buildplan-prod_postgres_data`) | `deploy/.env` na EC2, montado pelo `docker-compose.prod.yml` |
+| Workflow `sinapi-import.yml` | `secrets.DATABASE_URL` | Não alcança o banco de produção atual, que não tem porta pública (§7, item 23) |
 
 **Extensões:**
 
@@ -236,18 +242,20 @@ backend/
 │       └── sinapi/SINAPI 202609 SC.xlsx   # planilha oficial e fixture do parser
 ├── prisma.config.ts
 ├── jest.config.ts
+├── Dockerfile                 # imagem de produção multi-stage (build/ferramentas + runtime sem root)
 └── src/
-    ├── server.ts              # apenas app.listen(env.PORT)
-    ├── app.ts                 # createApp(): middlewares, rotas, errorMiddleware (importável pelo Supertest)
-    ├── config/env.ts          # validação Zod das variáveis (fail-fast)
+    ├── server.ts              # app.listen(env.PORT) + encerramento gracioso (SIGTERM/SIGINT)
+    ├── app.ts                 # createApp(opcoes): helmet, CORS, rate limit, rotas, errorMiddleware (importável pelo Supertest)
+    ├── config/env.ts          # validação Zod das variáveis (fail-fast, com regras extras em produção)
     ├── config/sinapi.config.ts # competência/UF/regime de referência da precificação (Zod + defaults)
     ├── errors/app-error.ts    # AppError(message, statusCode)
     ├── lib/prisma.ts          # PrismaClient singleton (globalThis)
-    ├── middlewares/           # async-handler, auth.middleware, error.middleware
+    ├── middlewares/           # async-handler, auth.middleware, error.middleware, rate-limit.middleware
     ├── types/express.d.ts     # augmenta Request com userId: string
     ├── schemas/               # Zod por recurso (*.schema.ts)
     ├── controllers/           # classes + instância singleton exportada
     ├── services/              # classes + instância singleton exportada
+    │   └── export/            # geradores puros da lista de compras: dados (modelo), xlsx, pdf, marca (cores/logo)
     ├── routes/                # routers Express por recurso
     ├── modules/sinapi/        # padrão modular: schema/controller/service/routes + codigo (normalização), parser (xlsx), import (regras do importador) e specs colocados
     ├── scripts/importSinapi.ts
@@ -325,10 +333,14 @@ Cada recurso exporta tipicamente dois routers: um **aninhado** (ex.: `obraMateri
 | `authMiddleware` | Exige `Authorization: Bearer <token>`; `jwt.verify` restrito a `["HS256"]`; payload string ou sem `sub` → 401; expirado/malformado → `"Token inválido ou expirado."` (401). Injeta **`req.userId = payload.sub`** (tipado em `types/express.d.ts`). |
 | Aplicação | Por router (`router.use(authMiddleware)`), não global. Públicas: `GET /`, `GET /api/health`, `POST /api/auth/register`, `POST /api/auth/login`. |
 | Respostas | Hash de senha nunca sai (selects explícitos). Erros 500 respondem genérico. |
-| Env | `JWT_SECRET` com mínimo de 16 caracteres; app encerra (`process.exit(1)`) se env inválido. |
+| Env | `config/env.ts` valida tudo na inicialização e encerra (`process.exit(1)`) se algo for inválido, logando só o nome do campo e a mensagem (nunca o valor). `JWT_SECRET` ≥ 16 caracteres. **Em produção:** `JWT_SECRET` ≥ 32 e sem trechos de exemplo (`troque`, `changeme`, `example`…), `DATABASE_URL` sem senha de desenvolvimento, `CORS_ORIGINS` obrigatória, com `https://` e sem `localhost`. |
+| Cabeçalhos | `helmet`: CSP `default-src 'none'` (a API só devolve JSON e arquivos), HSTS de 1 ano, `Cross-Origin-Resource-Policy: cross-origin`, `Referrer-Policy: no-referrer`; `X-Powered-By` removido. |
+| CORS | Allowlist `CORS_ORIGINS` (nunca `*`), métodos e headers explícitos, `exposedHeaders: Content-Disposition, Retry-After`. Cada origem deve ser exatamente o que o navegador envia: esquema + host em minúsculas, sem barra final. |
+| Rate limit | `express-rate-limit`, contadores em memória, por IP: **API** 300 req/min (ignora `/health`); **login** 10 falhas/15 min (logins bem-sucedidos não contam); **cadastro** 10/h. Resposta `429 { message }` com headers `RateLimit` (draft-7) e `Retry-After`. Desligado quando `NODE_ENV=test`; os testes o ligam por `createApp({ rateLimit: true, limites })`. |
+| IP do cliente | `app.set("trust proxy", TRUST_PROXY)`: `1` em produção (o Nginx), `0` fora. Sem isso, o rate limit veria todos os clientes com o IP do proxy; com um valor alto demais, o `X-Forwarded-For` seria forjável. |
 | Limites de payload | `express.json({ limit: "1mb" })`; `express.text` para `text/csv`/`text/plain` até 2 MB (UC01). |
 
-**Lacunas conhecidas:** sem refresh token, sem autorização por `papel`, token em `localStorage` no front (trade-off documentado em `lib/token.ts`).
+**Lacunas conhecidas:** rate limit em memória (vale para uma única instância e zera ao reiniciar), sem refresh token, sem autorização por `papel`, token em `localStorage` no front (trade-off documentado em `lib/token.ts`).
 
 ### 3.4 Tratamento de erros e utilitários
 
@@ -364,7 +376,7 @@ Contrato de resposta de erro:
 | `item-compra.service` | "Informar preço": recalcula `precoTotal` e marca `origemPreco = "MANUAL"`. |
 | `material.service` | CRUD do catálogo; no `PUT`, `especificacao: null` limpa o campo. |
 | `memorial.service` | Parser CSV nativo: detecta delimitador (`;`, `,`, tab) pelo cabeçalho, respeita aspas, normaliza cabeçalhos; `preview` não persiste e devolve linhas válidas/rejeitadas; `importar` cria materiais com `origem: MEMORIAL`. |
-| `export.service` | CSV RFC 4180 (CRLF, escape de aspas), servido com `Content-Disposition: attachment`. |
+| `export.service` | Três formatos, todos com `Content-Disposition: attachment`. **CSV** RFC 4180 (CRLF, escape de aspas). **XLSX** e **PDF** (PR #26) partem do mesmo modelo (`services/export/lista-compras.dados.ts`) e de geradores puros, testados sem banco: a planilha tem bloco de cabeçalho, tabela estilizada, subtotal por fórmula (`=IF(ISNUMBER(E),D*E,"")`), total com `=SUM` e destaque para itens `PENDENTE`; o PDF usa as mesmas cores e logo (`marca.ts`). Nome do arquivo: `lista-compras-<etapa>.<ext>` (`slugificar`). |
 | `dashboard.service` | KPIs: totais de etapas/materiais, vínculos por status com percentual, progresso de tarefas, orçamento consolidado. |
 | `log.service` | Timeline por vínculo e agregado por obra. |
 | `modules/sinapi` | Busca `descricao ILIKE %q%` **ou** `codigo LIKE q%` **ou** `codigoNormalizado LIKE normalizar(q)%` ("370" encontra "00000370"), filtros `uf`/`regime`, `limit` 1–50 (default 10), ordenada por `codigo` e `descricao`. **Não filtra por competência** (ver §7, item 15). `sinapi.parser.ts` lê a planilha oficial e é usado apenas pelo importador. |
@@ -408,7 +420,7 @@ frontend/src/
 | `/cronograma` | `CronogramaPage` | Tarefas por etapa, troca rápida de status (otimista) e progresso físico (PR #22) |
 | `/memorial` | `MemorialPage` | UC01 — dropzone, stepper, revisão e importação |
 | `/materiais` | `MateriaisPage` | Catálogo, etapas e vínculos |
-| `/compras` | `ComprasPage` | Listas de compras, "Informar preço" com sugestão SINAPI, exportação CSV |
+| `/compras` | `ComprasPage` | Listas de compras, "Informar preço" com sugestão SINAPI, exportação em Excel, PDF e CSV (`ExportacaoCard`) |
 | `/rastreabilidade` | `RastreabilidadePage` | Mudança de status e timeline (Tela 6) |
 | `/`, `*` | — | Redirecionam para `/obras` |
 
@@ -430,7 +442,8 @@ frontend/src/
 
 **Cliente Axios (`lib/api.ts`)**
 
-- `baseURL = import.meta.env.VITE_API_URL ?? "http://localhost:3333/api"`.
+- `baseURL = resolverApiBaseUrl(import.meta.env)` (`lib/apiBaseUrl.ts`): usa `VITE_API_URL` sem barras finais; ausente ou vazia, cai em `http://localhost:3333/api`. A variável é embutida no build. Na Vercel, o `vite.config.ts` **falha o build** se ela faltar ou não for `https://` (`exigirApiUrlNaVercel`), para nunca publicar um site apontando para `localhost`.
+- Downloads binários (`.xlsx`/`.pdf`) usam `responseType: "blob"` e `baixarBlob()` (`lib/download.ts`).
 - Interceptor de **request**: injeta `Authorization: Bearer <token>` quando existe.
 - Interceptor de **response**: em `401` fora de `/auth/login` e `/auth/register` → `tokenStorage.clear()` + `window.location.assign("/login")`.
 
@@ -480,7 +493,8 @@ Convenções: queries dependentes de obra usam `enabled: !!obraId`; mutações i
 | Fixtures | `tests/helpers/auth.helper.ts`: `criarUsuarioAutenticado()` (registra via API com e-mail único e devolve token), `criarObra`, `criarEtapa`, `criarMaterial`. Cenários multiusuário verificam isolamento (404 para recurso alheio). |
 | Scripts | `test` (carrega `.env.test`; `pretest` migra), `test:watch`, `test:coverage` (igual a `test` + `--coverage`; `pretest:coverage` migra), `test:ci` (usa env do job, flags `--ci --coverage`), `lint`. |
 | Cobertura | `collectCoverageFrom: src/**/*.ts` exceto specs, `src/tests/**`, `server.ts`, `scripts/**` e `types/**`. Reporters `text-summary` + `lcov` → `backend/coverage/lcov.info`. Sem thresholds locais (o Quality Gate do SonarCloud é o critério). Linha de base em 2026-11-12: **92,3% linhas**, 80,9% branches. |
-| Suítes | **14 arquivos `*.spec.ts` (135 casos)**: auth, obra, etapa, tarefa, material, vínculo, lista-compras, memorial, export, dashboard, log (em `src/tests/`); sinapi, sinapi.parser e sinapi.import (em `src/modules/sinapi/`). |
+| Suítes | **21 arquivos `*.spec.ts` (190 casos)**: auth, obra, etapa, tarefa, material, vínculo, lista-compras, memorial, export, dashboard, log, cors, security (helmet, rate limit, trust proxy) e test-db-guard (em `src/tests/`); env (em `src/config/`); lista-compras.dados, .xlsx e .pdf (em `src/services/export/`); sinapi, sinapi.parser e sinapi.import (em `src/modules/sinapi/`). |
+| Trava do banco | `garantirBancoDeTeste()` (`tests/helpers/test-db.ts`), chamada no topo do `setup.ts`, aborta a execução se o nome do banco ou do schema não contiver `test`. Existe porque os testes fazem `TRUNCATE` e apagam o catálogo SINAPI: rodar `test:ci` localmente com o `.env` de desenvolvimento apagava o banco. **Não remover.** |
 
 > Convenção: **todo teste do backend deve terminar em `.spec.ts`** — é o único padrão reconhecido pelo `testMatch`. A suíte SINAPI foi renomeada de `.test.ts` para `.spec.ts` por esse motivo. Ela semeia e limpa `ItemSinapi` em `beforeAll`/`afterAll`; o `resetDatabase()` global não trunca essa tabela, então o seed persiste entre os casos da suíte.
 >
@@ -496,7 +510,7 @@ Convenções: queries dependentes de obra usam `enabled: !!obraId`; mutações i
 | Ambiente | `jsdom`; `setup.ts` importa `@testing-library/jest-dom/vitest`, faz `cleanup()`, `vi.clearAllMocks()` e `localStorage.clear()` após cada teste, e aplica **polyfills exigidos pelo Radix** (`matchMedia`, `ResizeObserver`, `scrollIntoView`, `hasPointerCapture`, `releasePointerCapture`). |
 | Render | `renderComProviders(ui, { rota, client })` (`test/utils.tsx`): `QueryClient` novo por teste (`retry: false`, `gcTime: 0`) + `MemoryRouter`. |
 | Mocks | `vi.mock` na **fronteira `@/api/*`** e em `@/contexts/useObraAtiva` / `./useAuth`; nunca no Axios. Interação via `@testing-library/user-event`. |
-| Suítes | **17 arquivos (96 casos)**: contextos (`AuthContext`, `ProtectedRoute`, `ObraContext`); páginas (`DashboardPage`, `CronogramaPage`, `ComprasPage`, `RastreabilidadePage`, `MemorialPage`); componentes (`InformarPrecoDialog`, `MaterialFormDialog`, `TarefaFormDialog`, `EtapaTarefasCard`); hooks (`useTarefas`); regras puras em `lib/` (`tarefas`, `suprimentos`, `sinapi`, `memorialTemplate`). |
+| Suítes | **24 arquivos (132 casos)**: contextos (`AuthContext`, `ProtectedRoute`, `ObraContext`); páginas (`DashboardPage`, `CronogramaPage`, `ComprasPage`, `RastreabilidadePage`, `MemorialPage`); componentes (`InformarPrecoDialog`, `MaterialFormDialog`, `MaterialDetailPanel`, `TarefaFormDialog`, `EtapaTarefasCard`, `MemorialDropzone`, `TabelaMateriaisExtraidos`, `ObraCard`, `ObraFormDialog`); hooks (`useTarefas`); regras puras em `lib/` (`tarefas`, `suprimentos`, `sinapi`, `memorialTemplate`, `slug`, `apiBaseUrl`). |
 | Cobertura | `test:coverage` (`vitest run --coverage`), provider **v8**; `include: src/**/*.{ts,tsx}`, exclui testes, `src/test/**`, `components/ui/**` (shadcn), `main.tsx`, `vite-env.d.ts` e `types/**`. Reporters `text-summary` + `lcov` → `frontend/coverage/lcov.info`. Linha de base em 2026-11-12: **50,6% linhas**, 49,2% branches (páginas de Obras, Materiais e auth ainda sem teste). |
 | Execução local no Windows | Rodar `npm test` pelo PowerShell/terminal do VS Code. No Git Bash, `npx vitest run <arquivo>` pode falhar com *"failed to find the current suite"* (divergência `C:/` × `c:/` no caminho do drive), inclusive no código original. |
 
@@ -529,16 +543,54 @@ Todos usam Node 22.x com cache npm por lockfile; o `ci.yml` cancela execuções 
 1. **Workflows consolidados:** `backend-ci.yml` e `frontend-ci.yml` (M7) foram substituídos pelo `ci.yml` em `chore-sonarqube-quality`. Pushes em branches de feature não disparam mais o CI; ele roda no PR (e em `main`/`develop`).
 2. **Script de teste no CI:** o job `backend` usa `npm run test:ci` (variáveis do job, sem `pretest`/`.env.test`); as migrações são aplicadas no passo `prisma migrate deploy` anterior.
 3. ~~**Lint ausente no CI**~~ ✅ — `npm run lint` roda nos dois jobs; o backend ganhou ESLint (0 problemas em 84 arquivos, sem alterações de código).
-4. **Import SINAPI** não roda `prisma migrate deploy` — assume que produção já está migrada.
-5. **Sem deploy automatizado** (CD) para backend ou frontend.
+4. **Import SINAPI** não roda `prisma migrate deploy` — assume que o banco de destino já está migrado. O workflow não alcança o banco de produção atual (§7, item 23).
+5. **Deploy:** o frontend é publicado pela Vercel a cada push na `main` (e ganha um preview por PR). O backend **não** tem CD: atualiza-se na EC2 com `git pull && docker compose -f docker-compose.prod.yml up -d --build` (§5.4).
 6. ~~**Execução agendada do import quebrada**~~ ✅ — no cron, `inputs.source` é vazio e o workflow define `SINAPI_SOURCE=""`; com `??` a string vazia não caía no default (`ENOENT`). **Corrigido** em `fix-debitos-tecnicos-n2` (`resolverFonteSinapi`: `||` + `trim`). Ainda assim o job agendado só recarrega a amostra (§7, item 14).
 7. **Texto do workflow:** o nome do passo foi corrigido para "replace por competência"; o input `source` ainda sugere URL de forma genérica, embora planilhas só possam ser lidas de caminho local.
+
+### 5.4 Produção e deploy
+
+No ar desde 2026-11-16. O guia operacional (provisionamento, comandos, backup) é o [deploy/README.md](../deploy/README.md); aqui fica o desenho.
+
+```mermaid
+flowchart LR
+  U["Navegador"] -- HTTPS --> V["Vercel<br/>frontend estático (Vite)"]
+  U -- "HTTPS /api" --> N
+  subgraph EC2["AWS EC2 · Ubuntu 24.04 · t3.micro + swap 2 GB"]
+    N["Nginx (host)<br/>80 → 301 · 443 TLS Let's Encrypt"]
+    subgraph DC["Docker Compose · projeto buildplan-prod"]
+      A["api<br/>Node 22 · usuário node · read-only"]
+      M["migrate<br/>prisma migrate deploy (roda e termina)"]
+      P[("postgres:17-alpine<br/>volume postgres_data")]
+    end
+    N -- "127.0.0.1:3333" --> A
+    A --> P
+    M --> P
+  end
+```
+
+| Peça | Onde | Detalhes |
+|---|---|---|
+| Frontend | Vercel (Hobby), `https://build-plan-two.vercel.app` | Root Directory `frontend`. `vercel.json`: rewrite de todas as rotas para `index.html` (SPA), headers de segurança e cache longo em `/assets/`. `VITE_API_URL` definida em Production e Preview. |
+| API | EC2 `us-east-2`, `https://buildplan-api.duckdns.org/api` | Imagem `backend/Dockerfile` (multi-stage, `node:22-bookworm-slim`). Contêiner sem root, `read_only`, `cap_drop: ALL`, `no-new-privileges`, publicado só em `127.0.0.1:3333`. `HEALTHCHECK` em `/api/health`. |
+| Banco | Mesmo compose | `postgres:17-alpine`, sem porta publicada (só a rede interna do compose). As migrações rodam no serviço `migrate`, e a API só sobe depois que ele termina com sucesso. |
+| Proxy | Nginx no host | `deploy/nginx.conf.example`: `default_server` responde 444 a quem bate direto no IP; repassa `X-Forwarded-For`/`X-Forwarded-Proto`; `client_max_body_size 2m`; `/metrics` restrito a `127.0.0.1`. Certbot emite e renova o certificado. |
+| Rede | Security Group | Entrada: 22 (apenas o IP do administrador), 80 e 443. As portas 3333 e 5432 não são alcançáveis de fora. |
+| DNS | DuckDNS | Subdomínio gratuito apontando para o Elastic IP. Trocar por domínio próprio exige mudar o `server_name` do Nginx, emitir novo certificado e atualizar `VITE_API_URL` (com redeploy na Vercel). |
+| SINAPI | Serviço `sinapi` (profile `tools`) | `docker compose -f docker-compose.prod.yml --profile tools run --rm sinapi` importa a planilha versionada (4.135 insumos de SC, 09/2026). |
+| Backup | `deploy/backup.sh` + cron | `pg_dump --clean --if-exists` compactado em `~/backups`, validado (gzip íntegro e marcador de fim do dump) antes de substituir os antigos; retenção de 14 dias. |
+
+**Acoplamentos que quebram o sistema se esquecidos**
+
+- `CORS_ORIGINS` (EC2) tem de ser exatamente a URL do frontend. Se o domínio da Vercel mudar, login e cadastro falham com erro de CORS até o `.env` ser atualizado e a API recriada (`up -d`).
+- `VITE_API_URL` (Vercel) é embutida no build: mudar o endereço da API exige **Redeploy**.
+- `TRUST_PROXY=1` pressupõe exatamente um proxy (o Nginx). Colocar outro na frente (CDN, load balancer) exige ajustar o valor, senão o rate limit passa a contar o IP do proxy.
 
 ---
 
 ## 6. Tabela-Resumo de Endpoints da API
 
-Base: `http://localhost:3333`. 🔒 = exige `Authorization: Bearer <JWT>`. Todas as respostas são JSON, exceto o CSV.
+Base: `http://localhost:3333` em desenvolvimento e `https://buildplan-api.duckdns.org` em produção. 🔒 = exige `Authorization: Bearer <JWT>`. Todas as respostas são JSON, exceto as exportações (CSV, XLSX e PDF).
 
 ### 6.1 Prefixos registrados em `app.ts`
 
@@ -596,13 +648,15 @@ Base: `http://localhost:3333`. 🔒 = exige `Authorization: Bearer <JWT>`. Todas
 | GET | `/api/listas-compras/:id` | 🔒 | Detalhar lista com itens e totais | 200 |
 | DELETE | `/api/listas-compras/:id` | 🔒 | Remover lista (itens em cascata) | 204 |
 | GET | `/api/listas-compras/:id/export.csv` | 🔒 | Exportar lista em CSV (`text/csv`) | 200 |
+| GET | `/api/listas-compras/:id/export.xlsx` | 🔒 | Exportar lista em Excel, com fórmulas de subtotal e total | 200 |
+| GET | `/api/listas-compras/:id/export.pdf` | 🔒 | Exportar lista em PDF | 200 |
 | POST | `/api/listas-compras/:listaId/itens` | 🔒 | Adicionar item avulso à lista | 201 |
 | PATCH | `/api/itens-compra/:id` | 🔒 | Atualizar item / "Informar preço" (`MANUAL`) | 200 |
 | DELETE | `/api/itens-compra/:id` | 🔒 | Remover item | 204 |
 | GET | `/api/obras/:obraId/dashboard` | 🔒 | KPIs consolidados da obra | 200 |
 | GET | `/api/sinapi?q=&uf=&regime=&limit=` | 🔒 | Buscar no catálogo SINAPI (autocomplete de preço) | 200 |
 
-**Códigos de erro padronizados:** `400` validação/regra de negócio · `401` token ausente/inválido/credenciais · `404` inexistente **ou de outro usuário** · `409` duplicidade (e-mail, vínculo) · `500` genérico.
+**Códigos de erro padronizados:** `400` validação/regra de negócio · `401` token ausente/inválido/credenciais · `404` inexistente **ou de outro usuário** · `409` duplicidade (e-mail, vínculo) · `429` limite de requisições (com `Retry-After`) · `500` genérico.
 
 ### 6.3 Mapa conceitual de recursos
 
@@ -611,7 +665,7 @@ Base: `http://localhost:3333`. 🔒 = exige `Authorization: Bearer <JWT>`. Todas
  ├── etapas ─────────────► /api/etapas/:etapaId
  │                          ├── tarefas ──────► /api/tarefas/:id
  │                          ├── materiais (vínculos) ─► /api/vinculos/:id ── status · logs
- │                          └── lista-compras (gerar) ─► /api/listas-compras/:id ── itens · export.csv
+ │                          └── lista-compras (gerar) ─► /api/listas-compras/:id ── itens · export.csv|.xlsx|.pdf
  │                                                                              └► /api/itens-compra/:id
  ├── materiais ──────────► /api/materiais/:id
  │    ├── preview-memorial
@@ -649,6 +703,12 @@ Base: `http://localhost:3333`. 🔒 = exige `Authorization: Bearer <JWT>`. Todas
 | 19 | ~~Média~~ ✅ | Tarefas: datas não podiam ser apagadas na edição; `dataConclusao` permanecia ao reabrir; reenviar `CONCLUIDA` (o formulário sempre envia o status) sobrescrevia a data de conclusão; criar já `CONCLUIDA` deixava a data nula. Mesmo problema de "apagar campo" na descrição da tarefa e na especificação do material. | **Resolvido** em `fix-debitos-tecnicos-n2` (`.nullable()` no update + `resolverDataConclusao`). |
 | 20 | ~~Baixa~~ ✅ | Dashboard exibia 0% em "Suprimentos por etapa" enquanto os vínculos carregavam e listava "já aplicados" como ponto de atenção (apontamentos do PR #16, junto com a falta de testes de progresso e de criação de material). | **Resolvido**: skeleton durante o carregamento, "aplicados" como informação, `lib/suprimentos.ts` + testes de Dashboard e `MaterialFormDialog`. |
 | 21 | Baixa | O backend não valida `dataFimPrev ≥ dataInicioPrev` em tarefas (só o formulário do front valida). | Validar no service considerando os valores já gravados (update parcial). |
+| 22 | Média | O backup de produção (`deploy/backup.sh`) grava no disco da própria EC2: não sobrevive à perda da instância. | Enviar os dumps para fora (S3 ou download periódico) ou ativar snapshots do EBS no Lifecycle Manager. |
+| 23 | Média | O workflow `sinapi-import.yml` espera um `DATABASE_URL` alcançável pela internet, mas o banco de produção não tem porta pública. A atualização mensal do SINAPI em produção é manual (serviço `sinapi` do compose). | Decidir: remover o agendamento, ou rodar a importação a partir da EC2 (cron ou runner self-hosted). |
+| 24 | Baixa | Versões diferentes do PostgreSQL: 16 em desenvolvimento e no CI, 17 em produção. | Alinhar `docker-compose.yml` e o service do `ci.yml` para a 17. |
+| 25 | Baixa | Backend sem CD: cada atualização exige SSH e rebuild na EC2 (lento na `t3.micro`). | Publicar a imagem pelo CI (GHCR) e apenas fazer `pull` na EC2. |
+| 26 | Baixa | Rate limit em memória: zera ao reiniciar a API e não funciona com mais de uma instância. | Store compartilhado (Redis) se a API for escalada horizontalmente. |
+| 27 | Baixa | `npm audit` aponta vulnerabilidades em dependências transitivas (além do `xlsx`, item 16). | PR dedicado de atualização de dependências. |
 
 ---
 
@@ -668,7 +728,9 @@ Base: `http://localhost:3333`. 🔒 = exige `Authorization: Bearer <JWT>`. Todas
 | `SINAPI_MES`, `SINAPI_ANO` | backend (script) | ✔ se ausentes do nome do arquivo | `YYYYMM` do nome do arquivo | Competência (mês 1–12, ano 2000–2100, validados com Zod). Só para planilha. |
 | `SINAPI_REGIME` | backend (script) | — | `NAO_DESONERADO` | Regime gravado (enum validado com Zod); não muda a aba lida (§7, item 18). Só para planilha. |
 | `SINAPI_UF_PADRAO`, `SINAPI_MES_PADRAO`, `SINAPI_ANO_PADRAO`, `SINAPI_REGIME_PADRAO` | backend (API) | — | `SC`, `9`, `2026`, `NAO_DESONERADO` | Competência de referência da precificação automática (`config/sinapi.config.ts`). |
-| `VITE_API_URL` | frontend | — | `http://localhost:3333/api` | Base do Axios. |
+| `VITE_API_URL` | frontend | ✔ na Vercel (com `https://`) | `http://localhost:3333/api` | Base do Axios, embutida no build. Em produção: `https://buildplan-api.duckdns.org/api`. |
+| `POSTGRES_USER`, `POSTGRES_DB`, `POSTGRES_PASSWORD` | `deploy/.env` (EC2) | ✔ | — | Credenciais do Postgres de produção; o compose monta a `DATABASE_URL` da API a partir delas. |
+| `BACKUP_DIR`, `BACKUP_RETENCAO_DIAS` | `deploy/backup.sh` | — | `~/backups`, `14` | Destino e retenção dos dumps. |
 | `VITE_SINAPI_UF`, `VITE_SINAPI_REGIME` | frontend | — | `SC`, `NAO_DESONERADO` | Filtros do autocomplete SINAPI (`lib/sinapi.ts`); devem bater com `SINAPI_*_PADRAO`. |
 | `POSTGRES_*`, `PGADMIN_*` | raiz (compose) | ✔ p/ compose | — | Containers locais. |
 | `SONAR_TOKEN` | GitHub Secret (`ci.yml`) | ✔ p/ análise | — | Token do SonarCloud usado pelo job `sonarcloud`; ausente → análise ignorada com *warning*. |
@@ -696,6 +758,13 @@ npm test                 # Vitest (no Windows, prefira PowerShell — ver §5.2)
 npm run test:coverage    # idem + coverage/lcov.info (v8)
 npm run lint             # deve terminar com 0 problemas
 npm run build            # tsc --noEmit && vite build
+
+# Produção (na EC2, em ~/Build-Plan/deploy)
+git pull && docker compose -f docker-compose.prod.yml up -d --build   # atualizar a API
+docker compose -f docker-compose.prod.yml ps                          # api e postgres "healthy"
+docker compose -f docker-compose.prod.yml logs -f api
+docker compose -f docker-compose.prod.yml --profile tools run --rm sinapi   # importar o SINAPI
+./backup.sh                                                           # backup manual do banco
 ```
 
 ## Histórico de revisões
@@ -707,4 +776,5 @@ npm run build            # tsc --noEmit && vite build
 | 2026-11-12 | `c0158be` (PR #22) + `fix-debitos-tecnicos-n2` | Incorpora PRs #20–#22 (parser/planilha, precificação automática, enum `OrigemPreco`, `codigoNormalizado`, Cronograma). Débitos da N2: N+1 na precificação, importador com Zod e fallback de `SINAPI_SOURCE`, datas anuláveis e ciclo de `dataConclusao`, `uf`/`regime` no autocomplete, ESLint zerado, testes de Dashboard/suprimentos/material, limpeza de comentários. Marcadores 🚧 removidos. Conferido: `tsc --noEmit` (back e front), backend 135/135, frontend 96/96, `npm run lint` com 0 problemas. |
 | 2026-11-12 | `6912b19` (PR #23) + `chore-sonarqube-quality` | Etapa 3: cobertura lcov (Jest e `@vitest/coverage-v8`), ESLint no backend, `ci.yml` unificado (lint · tsc · testes com cobertura · build · SonarCloud) no lugar de `backend-ci.yml`/`frontend-ci.yml`, `sonar-project.properties`. Linha de base de cobertura: backend 92,3% / frontend 50,6% (linhas). |
 | 2026-11-12 | PR #24 (Quality Gate) | Correção dos 11 apontamentos de segurança do SonarCloud (todos em `ci.yml`): `npm ci --ignore-scripts` + `npm rebuild` nominal, fim do `npx`, actions fixadas por SHA (scan-action v5 → v8.4.1, que tinha vulnerabilidade conhecida). Node 22 no CI, escopo do Sonar migrado para exclusões (novo modelo de escopo), `sonar.qualitygate.wait=true`. Mesmo hardening no `sinapi-import.yml`. |
+| 2026-11-16 | `1d7046c` (PR #27) + `chore-pos-deploy` | Incorpora os PRs #25 (limpeza do SonarCloud: A/A/A), #26 (exportação `.xlsx`/`.pdf`, logo e favicon) e #27 (helmet, rate limit, `trust proxy`, validação de ambiente de produção, `Dockerfile`, `deploy/`, `vercel.json`). Registra o primeiro deploy (EC2 + Vercel) na nova §5.4, o `backup.sh`, a trava do banco de teste e os achados 22–27. Conferido: backend 190/190, frontend 132/132, lint e `tsc --noEmit` sem erros; backup e restauração testados num Postgres 17 descartável. |
 
