@@ -4,7 +4,12 @@
 import { describe, it, expect } from "@jest/globals";
 import request from "supertest";
 import { app } from "../app.js";
-import { criarUsuarioAutenticado, criarObra, criarEtapa } from "./helpers/auth.helper.js";
+import {
+  criarUsuarioAutenticado,
+  criarObra,
+  criarEtapa,
+  criarMaterial,
+} from "./helpers/auth.helper.js";
 
 const UUID_INEXISTENTE = "00000000-0000-4000-8000-000000000000";
 
@@ -165,5 +170,26 @@ describe("DELETE /api/etapas/:etapaId", () => {
       .set("Authorization", `Bearer ${usuarioB.token}`);
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe("RN02: materiais vinculados na listagem de etapas", () => {
+  it("informa quantos materiais ficariam sem associação ao excluir a etapa", async () => {
+    const { token } = await criarUsuarioAutenticado("rn02");
+    const obraId = await criarObra(token);
+    const comVinculos = await criarEtapa(token, obraId, "Fundação", 1);
+    await criarEtapa(token, obraId, "Alvenaria", 2);
+    for (const nome of ["Cimento", "Areia"]) {
+      const materialId = await criarMaterial(token, obraId, { nome });
+      await request(app)
+        .post(`/api/etapas/${comVinculos}/materiais`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ materialId, quantidade: 1 });
+    }
+
+    const res = await request(app).get(`/api/obras/${obraId}/etapas`).set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.map((e: { totalMateriaisVinculados: number }) => e.totalMateriaisVinculados)).toEqual([2, 0]);
   });
 });

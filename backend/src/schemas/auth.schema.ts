@@ -19,6 +19,10 @@ export const registerSchema = z.object({
     .min(8, "A senha deve ter ao menos 8 caracteres.")
     .max(72, "A senha deve ter no máximo 72 caracteres."), // limite do bcrypt
   papel: z.enum(["GESTOR", "PROPRIETARIO"]).optional(),
+  // Consentimento com a Política de Privacidade (LGPD, RFC §6.2).
+  aceitePrivacidade: z.literal(true, {
+    errorMap: () => ({ message: "É necessário aceitar a Política de Privacidade." }),
+  }),
 });
 
 export const loginSchema = z.object({
@@ -30,5 +34,40 @@ export const loginSchema = z.object({
   senha: z.string({ required_error: "A senha é obrigatória." }).min(1, "A senha é obrigatória."),
 });
 
+export const esqueciSenhaSchema = z.object({
+  email: z
+    .string({ required_error: "O e-mail é obrigatório." })
+    .trim()
+    .toLowerCase()
+    .email("E-mail inválido."),
+});
+
+export const redefinirSenhaSchema = z.object({
+  token: z
+    .string({ required_error: "O token é obrigatório." })
+    .trim()
+    .min(1, "O token é obrigatório.")
+    .max(200),
+  senha: z
+    .string({ required_error: "A senha é obrigatória." })
+    .min(8, "A senha deve ter ao menos 8 caracteres.")
+    .max(72, "A senha deve ter no máximo 72 caracteres."),
+});
+
+export const atualizarPerfilSchema = z
+  .object({
+    nome: z.string().trim().min(3, "O nome deve ter ao menos 3 caracteres.").max(120),
+    email: z.string().trim().toLowerCase().email("E-mail inválido."),
+  })
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "Informe ao menos um campo para atualizar.",
+  });
+
+export const excluirContaSchema = z.object({
+  senha: z.string({ required_error: "A senha é obrigatória." }).min(1, "A senha é obrigatória."),
+});
+
+export type AtualizarPerfilInput = z.infer<typeof atualizarPerfilSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;

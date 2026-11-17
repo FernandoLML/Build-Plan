@@ -11,6 +11,7 @@ async function criarUsuarioELogar(email: string): Promise<string> {
     nome: "Usuario Teste",
     email,
     senha: "senhaForte123",
+    aceitePrivacidade: true,
   });
   return res.body.token as string;
 }

@@ -3,7 +3,7 @@
 // e alternância rápida de status.
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, ListChecks, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, ListChecks, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarraProgresso } from "@/components/dashboard/BarraProgresso";
@@ -15,6 +15,7 @@ import {
 import { calcularProgresso } from "@/lib/tarefas";
 import type { EtapaComProgresso } from "@/types/etapa";
 import type { Tarefa } from "@/types/tarefa";
+import { ExcluirEtapaDialog } from "./ExcluirEtapaDialog";
 import { TarefaFormDialog } from "./TarefaFormDialog";
 import { TarefaItem } from "./TarefaItem";
 
@@ -28,6 +29,7 @@ export function EtapaTarefasCard({ etapa, obraId, defaultAberta = true }: Readon
   const [aberta, setAberta] = useState(defaultAberta);
   const [formOpen, setFormOpen] = useState(false);
   const [emEdicao, setEmEdicao] = useState<Tarefa | null>(null);
+  const [excluindoEtapa, setExcluindoEtapa] = useState(false);
 
   const { data: tarefas, isLoading, isError, refetch } = useTarefas(etapa.id);
   const alterarStatus = useAlterarStatusTarefa(etapa.id, obraId);
@@ -136,9 +138,21 @@ export function EtapaTarefasCard({ etapa, obraId, defaultAberta = true }: Readon
             {progresso.total}
           </span>
         </button>
-        <Button size="sm" variant="outline" onClick={abrirCriacao}>
-          <Plus className="mr-1 h-3.5 w-3.5" /> Nova tarefa
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={abrirCriacao}>
+            <Plus className="mr-1 h-3.5 w-3.5" /> Nova tarefa
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={`Excluir a etapa ${etapa.nome}`}
+            title="Excluir etapa"
+            onClick={() => setExcluindoEtapa(true)}
+            className="text-slate-400 hover:text-red-400"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Progresso físico */}
@@ -164,6 +178,12 @@ export function EtapaTarefasCard({ etapa, obraId, defaultAberta = true }: Readon
         etapaId={etapa.id}
         obraId={obraId}
         tarefa={emEdicao}
+      />
+      <ExcluirEtapaDialog
+        open={excluindoEtapa}
+        onOpenChange={setExcluindoEtapa}
+        etapa={etapa}
+        obraId={obraId}
       />
     </section>
   );

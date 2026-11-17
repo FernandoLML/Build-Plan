@@ -8,6 +8,7 @@ import { z } from "zod";
 
 const JWT_MIN_DEV = 16;
 const JWT_MIN_PRODUCAO = 32;
+const REMETENTE_PADRAO = "Build-Plan <nao-responda@buildplan.local>";
 
 // Trechos que denunciam um valor copiado de exemplo/CI em vez de um segredo real.
 const TRECHOS_INSEGUROS = ["troque", "changeme", "change-me", "nao-usar", "example", "exemplo", "dev_password"];
@@ -50,6 +51,15 @@ function ehOrigemDeProducao(origem: string): boolean {
   return url.protocol === "https:" && url.hostname !== "localhost" && url.hostname !== "127.0.0.1";
 }
 
+/** Variável opcional: ausente, vazia ou só com espaços vira `undefined`. */
+const textoOpcional = z
+  .string()
+  .optional()
+  .transform((v) => {
+    const limpo = v?.trim() ?? "";
+    return limpo.length > 0 ? limpo : undefined;
+  });
+
 const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -76,6 +86,19 @@ const envSchema = z
     // onde vem o IP do cliente (X-Forwarded-For) usado pelo rate limit.
     // Default: 1 em produção, 0 fora dela (sem proxy, o header seria forjável).
     TRUST_PROXY: z.coerce.number().int().min(0).max(5).optional(),
+    // Endereço público do frontend, usado nos links enviados por e-mail
+    // (redefinição de senha). Default: a primeira origem de CORS_ORIGINS.
+    FRONTEND_URL: textoOpcional,
+    // Envio de e-mail (SMTP). Sem SMTP_HOST nenhum e-mail é enviado: em
+    // desenvolvimento a mensagem é escrita no console.
+    SMTP_HOST: textoOpcional,
+    SMTP_PORT: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.coerce.number().int().min(1).max(65535).default(587),
+    ),
+    SMTP_USER: textoOpcional,
+    SMTP_PASS: textoOpcional,
+    EMAIL_REMETENTE: textoOpcional,
   })
   .superRefine((dados, ctx) => {
     const erro = (campo: string, message: string) =>
@@ -88,6 +111,14 @@ const envSchema = z
       if (origem !== "*" && !ehOrigemValida(origem)) {
         erro("CORS_ORIGINS", mensagemOrigemInvalida(origem));
       }
+    }
+
+    if (dados.FRONTEND_URL !== undefined && !ehOrigemValida(dados.FRONTEND_URL)) {
+      erro("FRONTEND_URL", mensagemOrigemInvalida(dados.FRONTEND_URL));
+    }
+    // Usuário e senha do SMTP andam juntos: um sem o outro é erro de digitação.
+    if ((dados.SMTP_USER === undefined) !== (dados.SMTP_PASS === undefined)) {
+      erro("SMTP_USER", "Defina SMTP_USER e SMTP_PASS juntos (ou nenhum dos dois).");
     }
 
     if (dados.NODE_ENV !== "production") return;
@@ -111,11 +142,16 @@ const envSchema = z
       }
     }
   })
-  .transform((dados) => ({
-    ...dados,
-    CORS_ORIGINS: dados.CORS_ORIGINS.length > 0 ? dados.CORS_ORIGINS : ["http://localhost:5173"],
-    TRUST_PROXY: dados.TRUST_PROXY ?? (dados.NODE_ENV === "production" ? 1 : 0),
-  }));
+  .transform((dados) => {
+    const origens = dados.CORS_ORIGINS.length > 0 ? dados.CORS_ORIGINS : ["http://localhost:5173"];
+    return {
+      ...dados,
+      CORS_ORIGINS: origens,
+      TRUST_PROXY: dados.TRUST_PROXY ?? (dados.NODE_ENV === "production" ? 1 : 0),
+      FRONTEND_URL: dados.FRONTEND_URL ?? origens[0],
+      EMAIL_REMETENTE: dados.EMAIL_REMETENTE ?? REMETENTE_PADRAO,
+    };
+  });
 
 export type Env = z.infer<typeof envSchema>;
 

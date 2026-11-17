@@ -73,6 +73,7 @@ const etapa: EtapaComProgresso = {
   totalTarefas: 0,
   tarefasConcluidas: 0,
   progresso: 0,
+  totalMateriaisVinculados: 0,
 };
 
 const vinculos: VinculoMaterialEtapa[] = [

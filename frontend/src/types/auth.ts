@@ -24,4 +24,16 @@ export interface RegisterPayload {
   nome: string;
   email: string;
   senha: string;
+  /** Aceite da Política de Privacidade (LGPD): a API só cadastra com `true`. */
+  aceitePrivacidade: true;
+}
+
+export interface AtualizarPerfilPayload {
+  nome?: string;
+  email?: string;
+}
+
+/** Resposta das rotas que só confirmam a operação. */
+export interface MensagemResponse {
+  message: string;
 }

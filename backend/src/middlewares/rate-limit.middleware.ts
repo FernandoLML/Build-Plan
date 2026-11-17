@@ -6,6 +6,8 @@
 //  - geral:    teto por IP para toda a /api (abuso, scraping, loops de cliente).
 //  - login:    conta só as tentativas que FALHARAM (força bruta de senha).
 //  - cadastro: conta todos os cadastros (criação de contas em massa).
+//  - recuperacao: pedidos e tentativas de redefinição de senha (evita usar a
+//    API para encher a caixa de e-mail de alguém ou testar tokens).
 
 import { rateLimit, type RateLimitRequestHandler } from "express-rate-limit";
 
@@ -15,18 +17,21 @@ export interface LimitesRateLimit {
   geral: { janelaMs: number; max: number };
   login: { janelaMs: number; max: number };
   cadastro: { janelaMs: number; max: number };
+  recuperacao: { janelaMs: number; max: number };
 }
 
 export const LIMITES_PADRAO: LimitesRateLimit = {
   geral: { janelaMs: MINUTO, max: 300 },
   login: { janelaMs: 15 * MINUTO, max: 10 },
   cadastro: { janelaMs: 60 * MINUTO, max: 10 },
+  recuperacao: { janelaMs: 60 * MINUTO, max: 5 },
 };
 
 export interface LimitadoresApi {
   geral: RateLimitRequestHandler;
   login: RateLimitRequestHandler;
   cadastro: RateLimitRequestHandler;
+  recuperacao: RateLimitRequestHandler;
 }
 
 function criarLimitador(
@@ -67,6 +72,11 @@ export function criarLimitadores(limites: LimitesRateLimit = LIMITES_PADRAO): Li
       limites.cadastro.janelaMs,
       limites.cadastro.max,
       "Muitos cadastros a partir deste endereço. Tente novamente mais tarde.",
+    ),
+    recuperacao: criarLimitador(
+      limites.recuperacao.janelaMs,
+      limites.recuperacao.max,
+      "Muitos pedidos de redefinição de senha. Tente novamente mais tarde.",
     ),
   };
 }

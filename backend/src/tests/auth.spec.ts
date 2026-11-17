@@ -9,6 +9,7 @@ const usuarioValido = {
   nome: "Fernando Luz",
   email: "fernando@buildplan.com",
   senha: "senhaForte123",
+  aceitePrivacidade: true,
 };
 
 describe("POST /api/auth/register", () => {

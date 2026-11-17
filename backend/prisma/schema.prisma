@@ -57,18 +57,38 @@ enum OrigemPreco {
 
 /// Usuário do sistema (gestor de obra ou proprietário).
 model Usuario {
-  id        String       @id @default(uuid())
-  nome      String
-  email     String       @unique
-  senhaHash String       @map("senha_hash")
-  papel     PapelUsuario @default(GESTOR)
-  createdAt DateTime     @default(now()) @map("created_at")
-  updatedAt DateTime     @updatedAt @map("updated_at")
+  id              String       @id @default(uuid())
+  nome            String
+  email           String       @unique
+  senhaHash       String       @map("senha_hash")
+  papel           PapelUsuario @default(GESTOR)
+  /// Momento em que o usuário aceitou a Política de Privacidade (LGPD, RFC §6.2).
+  /// Nulo apenas em contas criadas antes de o aceite existir.
+  consentimentoEm DateTime?    @map("consentimento_em")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
 
-  obras Obra[]
-  logs  LogRastreabilidade[]
+  obras             Obra[]
+  logs              LogRastreabilidade[]
+  tokensRedefinicao TokenRedefinicaoSenha[]
 
   @@map("usuario")
+}
+
+/// Pedido de redefinição de senha ("esqueci minha senha").
+/// Guarda apenas o HASH (SHA-256) do token: o valor real só existe no link
+/// enviado por e-mail, então um vazamento do banco não permite trocar senhas.
+model TokenRedefinicaoSenha {
+  id        String   @id @default(uuid())
+  usuarioId String   @map("usuario_id")
+  tokenHash String   @unique @map("token_hash")
+  expiraEm  DateTime @map("expira_em")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@map("token_redefinicao_senha")
 }
 
 /// Obra é a entidade agregadora: etapas, materiais e listas de compras.

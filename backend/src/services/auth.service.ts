@@ -9,7 +9,7 @@ import { AppError } from "../errors/app-error.js";
 import { env } from "../config/env.js";
 import type { RegisterInput, LoginInput } from "../schemas/auth.schema.js";
 
-const BCRYPT_COST = 12; // fator mínimo exigido pelo RFC (Seção 6.1)
+export const BCRYPT_COST = 12; // fator mínimo exigido pelo RFC (Seção 6.1)
 
 interface UsuarioPublico {
   id: string;
@@ -42,6 +42,8 @@ export class AuthService {
         email: data.email,
         senhaHash,
         papel: data.papel ?? "GESTOR",
+        // O schema só aceita o cadastro com o aceite marcado (LGPD).
+        consentimentoEm: new Date(),
       },
       select: { id: true, nome: true, email: true, papel: true },
     });

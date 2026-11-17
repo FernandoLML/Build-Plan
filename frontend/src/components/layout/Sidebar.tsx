@@ -91,10 +91,14 @@ export function Sidebar() {
       {/* Perfil / rodapé */}
       <div className="border-t border-slate-800 p-4">
         <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
+          <Link
+            to="/conta"
+            title="Minha conta"
+            className="min-w-0 rounded-md px-1 py-0.5 transition-colors hover:bg-slate-800/60"
+          >
             <p className="truncate text-sm font-medium text-slate-100">{usuario?.nome}</p>
             <p className="truncate text-xs text-slate-500">{usuario?.email}</p>
-          </div>
+          </Link>
           <button
             onClick={logout}
             title="Sair"

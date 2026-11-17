@@ -24,6 +24,8 @@ export interface EtapaComProgresso {
   totalTarefas: number;
   tarefasConcluidas: number;
   progresso: number; // 0–100
+  /** Materiais vinculados à etapa: base do aviso da RN02 ao excluir. */
+  totalMateriaisVinculados: number;
 }
 
 export const etapaFormSchema = z.object({

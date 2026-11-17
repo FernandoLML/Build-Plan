@@ -27,7 +27,7 @@ import { etapasApi, vinculosApi } from "@/api/materiais";
 
 // --- Fábricas de dados ---
 function etapa(id: string, nome: string, ordem: number): EtapaComProgresso {
-  return { id, nome, descricao: null, ordem, obraId: "obra-1", totalTarefas: 0, tarefasConcluidas: 0, progresso: 0 };
+  return { id, nome, descricao: null, ordem, obraId: "obra-1", totalTarefas: 0, tarefasConcluidas: 0, progresso: 0, totalMateriaisVinculados: 0 };
 }
 
 function material(nome: string): Material {

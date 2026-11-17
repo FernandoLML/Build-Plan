@@ -49,6 +49,11 @@ export const etapasApi = {
     const { data } = await api.post<Etapa>(`/obras/${obraId}/etapas`, payload);
     return data;
   },
+
+  // DELETE /api/etapas/:etapaId (apaga tarefas e vínculos em cascata)
+  async excluir(etapaId: string): Promise<void> {
+    await api.delete(`/etapas/${etapaId}`);
+  },
 };
 
 export const vinculosApi = {
