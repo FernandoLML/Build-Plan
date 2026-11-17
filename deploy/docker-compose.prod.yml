@@ -6,6 +6,13 @@
 #
 # Rede: nenhuma porta fica pública. O Postgres só existe na rede interna do
 # compose; a API escuta em 127.0.0.1:3333 e quem a expõe (80/443) é o Nginx.
+#
+# Imagens: por padrão são construídas aqui (`up -d --build`). No deploy
+# automático, o GitHub Actions publica as imagens no GHCR e o deploy.sh grava
+# API_IMAGE e TOOLS_IMAGE no .env; a máquina só faz o download.
+#
+# Observabilidade (Prometheus + Grafana) fica no profile "observability":
+#   docker compose -f docker-compose.prod.yml --profile observability up -d
 
 name: buildplan-prod
 
@@ -38,7 +45,7 @@ services:
     build: &build-tools
       context: ../backend
       target: build
-    image: buildplan-tools
+    image: ${TOOLS_IMAGE:-buildplan-tools}
     restart: "no"
     command: ["npm", "run", "prisma:deploy"]
     environment: &db-env
@@ -52,7 +59,7 @@ services:
     build:
       context: ../backend
       target: runtime
-    image: buildplan-api
+    image: ${API_IMAGE:-buildplan-api}
     restart: unless-stopped
     environment:
       <<: *db-env
@@ -66,6 +73,13 @@ services:
       SINAPI_MES_PADRAO: ${SINAPI_MES_PADRAO:-9}
       SINAPI_ANO_PADRAO: ${SINAPI_ANO_PADRAO:-2026}
       SINAPI_REGIME_PADRAO: ${SINAPI_REGIME_PADRAO:-NAO_DESONERADO}
+      # E-mail (recuperação de senha). Vazios = envio desligado.
+      FRONTEND_URL: ${FRONTEND_URL:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_REMETENTE: ${EMAIL_REMETENTE:-}
     ports:
       - "127.0.0.1:3333:3333" # só o host (Nginx) alcança
     depends_on:
@@ -87,7 +101,7 @@ services:
   sinapi:
     profiles: ["tools"]
     build: *build-tools
-    image: buildplan-tools
+    image: ${TOOLS_IMAGE:-buildplan-tools}
     restart: "no"
     command: ["npm", "run", "sinapi:import"]
     environment:
@@ -98,5 +112,64 @@ services:
         condition: service_completed_successfully
     logging: *logging
 
+  # ---- Observabilidade (profile "observability") --------------------------
+  # Nenhum dos dois é publicado na internet: escutam só em 127.0.0.1 e são
+  # acessados por túnel SSH (ver deploy/README.md). Os limites de memória são
+  # baixos porque a instância é uma t3.micro (1 GB + swap).
+
+  # Coleta as métricas de http://api:3333/metrics a cada 15 s (prometheus.yml).
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # Guarda 7 dias ou 300 MB, o que vier primeiro (disco de 20 GB).
+      - --storage.tsdb.retention.time=7d
+      - --storage.tsdb.retention.size=300MB
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      - api
+    mem_limit: 192m
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
+
+  # Painéis. Datasource e dashboard são provisionados a partir de ./grafana.
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:12.1.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      # Defina GRAFANA_ADMIN_PASSWORD no .env antes do primeiro start. Vazia, o
+      # Grafana usa a senha inicial de fábrica e pede a troca no primeiro login.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/buildplan-api.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus
+    mem_limit: 384m
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
+
 volumes:
   postgres_data:
+  prometheus_data:
+  grafana_data:

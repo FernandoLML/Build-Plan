@@ -1,0 +1,21 @@
+# Caminho: /deploy/prometheus.yml
+# Configuração do Prometheus (serviço `prometheus` do docker-compose.prod.yml).
+# Ele busca as métricas da API pela rede interna do Docker (http://api:3333),
+# sem passar pelo Nginx: o /metrics nunca fica acessível pela internet.
+
+global:
+  scrape_interval: 15s # frequência de coleta
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # API do Build-Plan: métricas HTTP e do processo Node.js (prom-client).
+  - job_name: buildplan-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:3333"]
+
+  # O próprio Prometheus (uso de memória, séries armazenadas, coletas com falha).
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

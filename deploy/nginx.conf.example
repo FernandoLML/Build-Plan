@@ -37,13 +37,13 @@ server {
     # Igual ao maior corpo aceito pela API (memorial em CSV: 2 MB).
     client_max_body_size 2m;
 
-    # /metrics (futuro: Prometheus) nunca fica público — só a própria máquina.
-    # Para liberar um coletor externo, acrescente "allow <IP>;" antes do deny.
-    location = /metrics {
-        allow 127.0.0.1;
-        allow ::1;
-        deny all;
-        proxy_pass http://buildplan_api;
+    # /metrics (Prometheus) nunca é servido pelo Nginx. O Prometheus lê as
+    # métricas direto da API pela rede interna do Docker, então ninguém precisa
+    # deste caminho pela internet. A regex cobre variações como /metrics/ e
+    # /Metrics (~* ignora maiúsculas). A API também recusa /metrics quando a
+    # requisição chega por um proxy: são duas barreiras independentes.
+    location ~* ^/metrics {
+        return 404;
     }
 
     location / {
