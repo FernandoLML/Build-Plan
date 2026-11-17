@@ -74,6 +74,24 @@ export function useCriarEtapa(obraId: string | null) {
   });
 }
 
+/**
+ * Excluir uma etapa apaga em cascata as tarefas e os vínculos dela, e as
+ * listas de compras perdem a referência à etapa: tudo isso é revalidado.
+ */
+export function useExcluirEtapa(obraId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (etapaId: string) => etapasApi.excluir(etapaId),
+    onSuccess: (_resultado, etapaId) => {
+      queryClient.removeQueries({ queryKey: ["tarefas", etapaId] });
+      queryClient.removeQueries({ queryKey: ["vinculos", etapaId] });
+      queryClient.invalidateQueries({ queryKey: ["etapas", obraId] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard", obraId] });
+      queryClient.invalidateQueries({ queryKey: ["listas-compras", obraId] });
+    },
+  });
+}
+
 // ---- Vínculos (por etapa) ----
 export function useVinculosPorEtapa(etapaId: string | null) {
   return useQuery({

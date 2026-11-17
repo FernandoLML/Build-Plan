@@ -5,11 +5,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link, useNavigate } from "react-router-dom";
-import { AxiosError } from "axios";
-import { Boxes } from "lucide-react";
 import { authApi } from "@/api/auth";
 import { tokenStorage } from "@/lib/token";
+import { mensagemDeErro } from "@/lib/erroApi";
 import { useAuth } from "@/auth/useAuth";
+import { AuthCard } from "@/components/auth/AuthCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,9 +18,15 @@ const registerSchema = z.object({
   nome: z.string().min(3, "O nome deve ter ao menos 3 caracteres."),
   email: z.string().email("E-mail inválido."),
   senha: z.string().min(8, "A senha deve ter ao menos 8 caracteres."),
+  // Consentimento exigido pela LGPD (RFC §6.2); a API também recusa sem ele.
+  aceitePrivacidade: z.boolean().refine((aceito) => aceito, {
+    message: "É necessário aceitar a Política de Privacidade.",
+  }),
 });
 
 type RegisterForm = z.infer<typeof registerSchema>;
+
+const LINK = "font-medium text-indigo-400 hover:text-indigo-300";
 
 export function RegisterPage() {
   const { setUsuario } = useAuth();
@@ -31,44 +37,31 @@ export function RegisterPage() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<RegisterForm>({ resolver: zodResolver(registerSchema) });
+  } = useForm<RegisterForm>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: { aceitePrivacidade: false },
+  });
 
-  async function onSubmit(dados: RegisterForm) {
+  async function onSubmit({ nome, email, senha }: RegisterForm) {
     setErro(null);
     try {
-      const { token, usuario } = await authApi.register(dados);
+      const { token, usuario } = await authApi.register({
+        nome,
+        email,
+        senha,
+        aceitePrivacidade: true, // o schema só chega aqui com o aceite marcado
+      });
       tokenStorage.set(token);
       setUsuario(usuario);
       navigate("/dashboard", { replace: true });
     } catch (e) {
-      const msg =
-        e instanceof AxiosError
-          ? (e.response?.data as { message?: string })?.message
-          : undefined;
-      setErro(msg ?? "Não foi possível cadastrar. Tente novamente.");
+      setErro(mensagemDeErro(e, "Não foi possível cadastrar. Tente novamente."));
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4">
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="w-full max-w-sm space-y-5 rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-lg"
-      >
-        <div className="flex items-center gap-2">
-          <Boxes className="h-6 w-6 text-indigo-500" />
-          <h1 className="font-display text-xl font-semibold tracking-tight text-slate-100">
-            Build-Plan
-          </h1>
-        </div>
-        <p className="text-sm text-slate-400">Crie sua conta para começar.</p>
-
-        {erro && (
-          <p className="rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-400">
-            {erro}
-          </p>
-        )}
-
+    <AuthCard subtitulo="Crie sua conta para começar." erro={erro}>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
         <div className="space-y-1.5">
           <Label htmlFor="nome" className="text-slate-300">Nome</Label>
           <Input id="nome" placeholder="Seu nome" {...register("nome")} />
@@ -87,17 +80,38 @@ export function RegisterPage() {
           {errors.senha && <p className="text-xs text-red-400">{errors.senha.message}</p>}
         </div>
 
+        <div className="space-y-1.5">
+          <div className="flex items-start gap-2">
+            <input
+              id="aceitePrivacidade"
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 rounded border-slate-700 bg-slate-950 accent-indigo-600"
+              {...register("aceitePrivacidade")}
+            />
+            <Label htmlFor="aceitePrivacidade" className="text-sm font-normal leading-snug text-slate-300">
+              Li e aceito a{" "}
+              <Link to="/privacidade" className={LINK}>
+                Política de Privacidade
+              </Link>
+              .
+            </Label>
+          </div>
+          {errors.aceitePrivacidade && (
+            <p className="text-xs text-red-400">{errors.aceitePrivacidade.message}</p>
+          )}
+        </div>
+
         <Button type="submit" disabled={isSubmitting} className="w-full">
           {isSubmitting ? "Cadastrando…" : "Cadastrar"}
         </Button>
-
-        <p className="text-center text-sm text-slate-400">
-          Já tem conta?{" "}
-          <Link to="/login" className="font-medium text-indigo-400 hover:text-indigo-300">
-            Entrar
-          </Link>
-        </p>
       </form>
-    </div>
+
+      <p className="text-center text-sm text-slate-400">
+        Já tem conta?{" "}
+        <Link to="/login" className={LINK}>
+          Entrar
+        </Link>
+      </p>
+    </AuthCard>
   );
 }

@@ -34,6 +34,7 @@ function etapa(id: string, nome: string, ordem: number, total: number, concluida
     totalTarefas: total,
     tarefasConcluidas: concluidas,
     progresso: total === 0 ? 0 : Math.round((concluidas / total) * 100),
+    totalMateriaisVinculados: 0,
   };
 }
 

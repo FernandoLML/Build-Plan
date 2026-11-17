@@ -15,7 +15,12 @@ export const api = axios.create({
 
 // Rotas de autenticação não devem disparar o redirect de 401 (o erro é tratado
 // pela própria tela de login/registro).
-const ROTAS_AUTH = ["/auth/login", "/auth/register"];
+const ROTAS_AUTH = [
+  "/auth/login",
+  "/auth/register",
+  "/auth/esqueci-senha",
+  "/auth/redefinir-senha",
+];
 
 // Request: injeta o Bearer token, se existir.
 api.interceptors.request.use((config) => {

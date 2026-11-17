@@ -16,6 +16,7 @@ function limites(parcial: Partial<LimitesRateLimit> = {}): LimitesRateLimit {
     geral: { janelaMs: MINUTO, max: 1000 },
     login: { janelaMs: MINUTO, max: 1000 },
     cadastro: { janelaMs: MINUTO, max: 1000 },
+    recuperacao: { janelaMs: MINUTO, max: 1000 },
     ...parcial,
   };
 }
@@ -83,7 +84,10 @@ describe("Rate limiting", () => {
   it("logins bem-sucedidos não consomem a cota de tentativas", async () => {
     const limitado = createApp({ rateLimit: true, limites: limites({ login: { janelaMs: MINUTO, max: 2 } }) });
     const usuario = { nome: "Ana Lima", email: "ana@buildplan.test", senha: "senhaForte123" };
-    await request(limitado).post("/api/auth/register").send(usuario).expect(201);
+    await request(limitado)
+      .post("/api/auth/register")
+      .send({ ...usuario, aceitePrivacidade: true })
+      .expect(201);
 
     for (let i = 0; i < 4; i++) {
       const res = await request(limitado).post("/api/auth/login").send({ email: usuario.email, senha: usuario.senha });
@@ -96,7 +100,12 @@ describe("Rate limiting", () => {
     const cadastro = (n: number) =>
       request(limitado)
         .post("/api/auth/register")
-        .send({ nome: `Usuário ${n}`, email: `u${n}@buildplan.test`, senha: "senhaForte123" });
+        .send({
+          nome: `Usuário ${n}`,
+          email: `u${n}@buildplan.test`,
+          senha: "senhaForte123",
+          aceitePrivacidade: true,
+        });
 
     expect((await cadastro(1)).status).toBe(201);
     expect((await cadastro(2)).status).toBe(201);

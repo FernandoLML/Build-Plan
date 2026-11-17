@@ -1,11 +1,16 @@
 // Caminho: /frontend/src/App.tsx
-// Rotas: públicas (/login, /register) e privadas (ProtectedRoute + AppLayout).
+// Rotas: públicas (login, cadastro, recuperação de senha, privacidade) e
+// privadas (ProtectedRoute + AppLayout).
 
 import { Routes, Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { LoginPage } from "@/pages/auth/LoginPage";
 import { RegisterPage } from "@/pages/auth/RegisterPage";
+import { EsqueciSenhaPage } from "@/pages/auth/EsqueciSenhaPage";
+import { RedefinirSenhaPage } from "@/pages/auth/RedefinirSenhaPage";
+import { PrivacidadePage } from "@/pages/auth/PrivacidadePage";
+import { ContaPage } from "@/pages/conta/ContaPage";
 import { ObrasPage } from "@/pages/obras/ObrasPage";
 import { DashboardPage } from "@/pages/dashboard/DashboardPage";
 import { MemorialPage } from "@/pages/memorial/MemorialPage";
@@ -20,6 +25,9 @@ export default function App() {
       {/* Públicas */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/esqueci-senha" element={<EsqueciSenhaPage />} />
+      <Route path="/redefinir-senha" element={<RedefinirSenhaPage />} />
+      <Route path="/privacidade" element={<PrivacidadePage />} />
 
       {/* Privadas: exigem sessão (ProtectedRoute) e usam o shell (AppLayout) */}
       <Route element={<ProtectedRoute />}>
@@ -31,6 +39,7 @@ export default function App() {
           <Route path="/compras" element={<ComprasPage />} />
           <Route path="/rastreabilidade" element={<RastreabilidadePage />} />
           <Route path="/memorial" element={<MemorialPage />} />
+          <Route path="/conta" element={<ContaPage />} />
         </Route>
       </Route>
 

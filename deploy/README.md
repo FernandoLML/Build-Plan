@@ -7,8 +7,12 @@ Navegador ──HTTPS──> Vercel (frontend React, estático)
                     ├─ Nginx (80/443, certificado Let's Encrypt)
                     │    └─> 127.0.0.1:3333
                     └─ Docker Compose
-                         ├─ api      (Node 22, sem root)
-                         └─ postgres (17, sem porta exposta)
+                         ├─ api        (Node 22, sem root)
+                         ├─ postgres   (17, sem porta exposta)
+                         ├─ prometheus (métricas; só em 127.0.0.1)
+                         └─ grafana    (painéis; só em 127.0.0.1)
+
+GitHub Actions ──imagens──> GHCR ──pull──> EC2   (deploy automático, via AWS SSM)
 ```
 
 Arquivos desta pasta:
@@ -19,6 +23,9 @@ Arquivos desta pasta:
 | `.env.example` | Modelo do `.env` de produção (segredos) |
 | `nginx.conf.example` | Reverse proxy do Nginx para a API |
 | `backup.sh` | Backup do banco com rotação (manual ou via cron) |
+| `deploy.sh` | Atualiza a API com as imagens publicadas pelo CI (usado pelo deploy automático e para rollback) |
+| `prometheus.yml` | Configuração do Prometheus: coleta as métricas da API a cada 15 s |
+| `grafana/` | Datasource e dashboard do Grafana, carregados automaticamente |
 
 ## Antes de começar
 
@@ -139,19 +146,127 @@ A variável `VITE_API_URL` é embutida no build: se mudar, faça **Redeploy** na
 - [ ] Buscar um insumo SINAPI e exportar uma lista de compras em `.xlsx` e `.pdf`.
 - [ ] `curl -I http://IP-DA-EC2:3333` e `:5432` de fora **não** respondem.
 
+## 9. Deploy automático (GitHub Actions)
+
+Depois desta configuração, **todo merge na `main` publica sozinho**: o job `deploy`
+do `ci.yml` só roda se os testes e o Quality Gate do SonarCloud passarem. Ele
+constrói as imagens, publica no GHCR (registro de imagens do GitHub) e manda a EC2
+executar o `deploy.sh`. Ninguém entra na máquina.
+
+```
+push na main ─> testes + SonarCloud ─> build das imagens ─> GHCR
+                                                              │
+              EC2: deploy.sh  <── AWS SSM (Run Command) <─────┘
+              (pull das imagens, migrações, API, health-check)
+```
+
+O comando chega à EC2 pelo **AWS Systems Manager (SSM)**, não por SSH: a porta 22
+continua liberada só para o seu IP. O GitHub se autentica na AWS por **OIDC**, uma
+credencial temporária emitida a cada execução. Não existe chave da AWS guardada no
+GitHub.
+
+### 9.1 Permitir que a EC2 receba comandos do SSM
+
+- [ ] Console da AWS > **IAM > Roles > Create role** > *AWS service* > **EC2**.
+      Política: `AmazonSSMManagedInstanceCore`. Nome: `buildplan-ec2-ssm`.
+- [ ] **EC2 > Instances** > selecione a instância > *Actions > Security > Modify IAM role*
+      > escolha `buildplan-ec2-ssm`.
+- [ ] Após alguns minutos, a instância aparece em **Systems Manager > Fleet Manager**.
+      Se não aparecer: `sudo snap restart amazon-ssm-agent` na EC2.
+
+### 9.2 Permitir que o GitHub Actions dispare o deploy
+
+- [ ] **IAM > Identity providers > Add provider** > *OpenID Connect*.
+      URL: `https://token.actions.githubusercontent.com` · Audience: `sts.amazonaws.com`.
+- [ ] **IAM > Roles > Create role** > *Web identity* > o provedor acima.
+      Organização `FernandoLML`, repositório `Build-Plan`, branch `main`.
+      Nome: `buildplan-github-deploy`. Sem política por enquanto.
+- [ ] Na role criada, *Add permissions > Create inline policy* (JSON), trocando
+      `REGIAO`, `CONTA` e `ID-DA-INSTANCIA`:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "ssm:SendCommand",
+      "Resource": [
+        "arn:aws:ssm:REGIAO::document/AWS-RunShellScript",
+        "arn:aws:ec2:REGIAO:CONTA:instance/ID-DA-INSTANCIA"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ssm:GetCommandInvocation",
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+A role só pode executar comandos **nesta** instância, e só pode ser assumida por
+execuções da branch `main` deste repositório (confira em *Trust relationships* que a
+condição `sub` é `repo:FernandoLML/Build-Plan:ref:refs/heads/main`).
+
+### 9.3 Variáveis no GitHub
+
+Repositório > **Settings > Secrets and variables > Actions > Variables**:
+
+| Variable | Valor |
+|---|---|
+| `AWS_REGION` | região da instância, ex.: `us-east-2` |
+| `AWS_DEPLOY_ROLE_ARN` | ARN da role `buildplan-github-deploy` |
+| `EC2_INSTANCE_ID` | id da instância, ex.: `i-0abc123...` |
+
+São *variables*, não *secrets*: nenhuma delas dá acesso a nada sozinha. Enquanto não
+estiverem definidas, o job só publica as imagens e avisa que pulou a EC2.
+
+### 9.4 Tornar as imagens públicas
+
+O primeiro deploy cria dois pacotes no GitHub: `build-plan-api` e `build-plan-tools`.
+Eles nascem privados, e a EC2 não conseguiria baixá-los.
+
+- [ ] Perfil do GitHub > **Packages** > abra cada pacote > *Package settings* >
+      **Change visibility > Public**. O código já é público; as imagens não contêm segredos
+      (eles ficam no `deploy/.env` da EC2).
+- [ ] Em **Actions**, reexecute o job `deploy` (*Re-run failed jobs*).
+
+### 9.5 Conferir
+
+- [ ] O job `deploy` termina verde e o log mostra `OK: API no ar (<commit>)`.
+- [ ] Na EC2, `grep IMAGE ~/Build-Plan/deploy/.env` mostra as imagens do commit publicado.
+
+**Voltar para uma versão anterior** (rollback), na EC2, com o hash completo do commit:
+
+```bash
+~/Build-Plan/deploy/deploy.sh <hash-do-commit>
+```
+
 ## Operação
 
 ```bash
 cd ~/Build-Plan/deploy
 
-# Atualizar para a última versão da main
-git pull && docker compose -f docker-compose.prod.yml up -d --build
-
 # Logs
 docker compose -f docker-compose.prod.yml logs -f api
+
+# Estado dos contêineres
+docker compose -f docker-compose.prod.yml ps
 ```
 
-O frontend não precisa de comando: a Vercel publica sozinha a cada push na `main`.
+A API é atualizada pelo deploy automático (passo 9) a cada merge na `main`, e o
+frontend pela Vercel. Se precisar atualizar à mão (por exemplo, com o GitHub fora do ar):
+
+```bash
+git pull && ./deploy.sh latest          # usa a última imagem publicada
+# ou, construindo na própria máquina (lento na t3.micro):
+git pull && docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Depois de mudar o `nginx.conf.example`, replique a alteração em
+`/etc/nginx/sites-available/buildplan` (o Certbot editou esse arquivo, então não o
+sobrescreva) e rode `sudo nginx -t && sudo systemctl reload nginx`.
 
 Os contêineres voltam sozinhos após reinício da máquina (`restart: unless-stopped`).
 Os dados do banco ficam no volume `buildplan-prod_postgres_data`; nunca use
@@ -196,6 +311,58 @@ gunzip -c ~/backups/buildplan-AAAA-MM-DD-HHMM.sql.gz | \
 docker compose -f docker-compose.prod.yml start api
 ```
 
+### E-mail (recuperação de senha)
+
+O "esqueci minha senha" envia um link por e-mail. Sem SMTP configurado a API funciona
+normalmente, mas o link não é enviado (o log registra `SMTP não configurado`).
+
+- [ ] Crie uma conta em um provedor SMTP (Brevo, Amazon SES, Mailgun, ou Gmail com
+      senha de app) e valide o remetente.
+- [ ] No `deploy/.env`: `SMTP_HOST`, `SMTP_PORT` (587), `SMTP_USER`, `SMTP_PASS` e
+      `EMAIL_REMETENTE`. O link usa `FRONTEND_URL` ou, na falta dela, a primeira
+      origem de `CORS_ORIGINS`.
+- [ ] `docker compose -f docker-compose.prod.yml up -d` e teste pelo site.
+
+A AWS bloqueia a porta 25 de saída nas instâncias EC2; use 587 ou 465.
+
+### Observabilidade (Prometheus + Grafana)
+
+A API expõe métricas em `/metrics` (requisições por rota, latência, status, memória e
+CPU do Node.js). O Prometheus coleta a cada 15 s pela rede interna do Docker, e o
+Grafana já sobe com o datasource e o dashboard **Build-Plan · API** prontos.
+
+```bash
+cd ~/Build-Plan/deploy
+echo "GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 16)" >> .env
+echo "COMPOSE_PROFILES=observability" >> .env   # mantém os dois serviços em todo `up -d`
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Nenhum dos dois fica na internet: escutam só em `127.0.0.1`, e o Security Group não
+muda. Para abrir os painéis, crie um **túnel SSH** a partir do seu computador:
+
+```powershell
+ssh -i .\sua-chave.pem -L 3000:127.0.0.1:3000 -L 9090:127.0.0.1:9090 ubuntu@api.seu-dominio.com
+```
+
+Com o túnel aberto:
+
+- Grafana: <http://localhost:3000> (usuário `admin`, senha do `.env`)
+- Prometheus: <http://localhost:9090/targets> (o alvo `buildplan-api` deve estar **UP**)
+
+- [ ] `curl -s https://api.seu-dominio.com/metrics` de fora responde **404**.
+- [ ] `curl -s http://127.0.0.1:3333/metrics | head` na EC2 mostra as métricas.
+
+O `/metrics` tem duas barreiras: o Nginx devolve 404 para qualquer `/metrics*`, e a
+própria API recusa a rota quando a requisição chega por um proxy. **Atualize o Nginx
+da EC2** com o bloco `location ~* ^/metrics` do `nginx.conf.example`.
+
+Consumo: cerca de 200 MB para o Grafana e 30 a 80 MB para o Prometheus, com limites de
+384 MB e 192 MB. Na `t3.micro` isso depende do swap do passo 3. O Prometheus guarda 7
+dias ou 300 MB de histórico. Para desligar:
+`docker compose -f docker-compose.prod.yml --profile observability stop prometheus grafana`
+(e remova `COMPOSE_PROFILES` do `.env`).
+
 ### Pausar e religar
 
 A aplicação fica no ar 24 horas; não há nada para ligar ou desligar no dia a dia.
@@ -214,4 +381,7 @@ Nunca use **Terminate**: ele apaga a máquina e o disco com o banco.
   do EBS) depende de configuração à parte.
 - O workflow `sinapi-import.yml` do GitHub Actions não alcança este banco (a porta
   5432 não é pública): a importação do SINAPI em produção é o comando do passo 6.
-- `/metrics` ainda não existe na API; o Nginx já o deixa restrito à própria máquina.
+- Não há alertas: o Grafana mostra os painéis, mas ninguém é avisado se a API cair.
+  O próximo passo seria uma regra de alerta (Grafana Alerting) com envio por e-mail.
+- Trocar a senha não derruba sessões abertas: o JWT é stateless e continua válido
+  até expirar (`JWT_EXPIRES_IN`, 8 h).

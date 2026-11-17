@@ -139,3 +139,59 @@ describe("carregarEnv", () => {
     expect(saida).not.toContain("troque-este-segredo");
   });
 });
+
+describe("validarEnv — e-mail e URL do frontend", () => {
+  const ambiente = (extra: Record<string, string | undefined>) => {
+    const resultado = validarEnv({ ...PROD, ...extra });
+    if (!resultado.sucesso) throw new Error(JSON.stringify(resultado.erros));
+    return resultado.env;
+  };
+  const erros = (extra: Record<string, string | undefined>) => {
+    const resultado = validarEnv({ ...PROD, ...extra });
+    return resultado.sucesso ? {} : resultado.erros;
+  };
+
+  it("usa a primeira origem do CORS como FRONTEND_URL quando ausente ou vazia", () => {
+    expect(ambiente({}).FRONTEND_URL).toBe(ambiente({}).CORS_ORIGINS[0]);
+    expect(ambiente({ FRONTEND_URL: "   " }).FRONTEND_URL).toBe(ambiente({}).CORS_ORIGINS[0]);
+  });
+
+  it("aceita uma FRONTEND_URL explícita e recusa valor com caminho ou barra final", () => {
+    expect(ambiente({ FRONTEND_URL: "https://app.buildplan.com.br" }).FRONTEND_URL).toBe(
+      "https://app.buildplan.com.br",
+    );
+    expect(erros({ FRONTEND_URL: "https://app.buildplan.com.br/" })).toHaveProperty("FRONTEND_URL");
+    expect(erros({ FRONTEND_URL: "app.buildplan.com.br" })).toHaveProperty("FRONTEND_URL");
+  });
+
+  it("deixa o SMTP desligado por padrão, com a porta 587", () => {
+    const env = ambiente({});
+    expect(env.SMTP_HOST).toBeUndefined();
+    expect(env.SMTP_PORT).toBe(587);
+    expect(env.EMAIL_REMETENTE).toContain("Build-Plan");
+  });
+
+  it("lê a configuração completa do SMTP", () => {
+    const env = ambiente({
+      SMTP_HOST: " smtp.provedor.com ",
+      SMTP_PORT: "465",
+      SMTP_USER: "usuario",
+      SMTP_PASS: "segredo-do-smtp",
+      EMAIL_REMETENTE: "Build-Plan <contato@buildplan.com.br>",
+    });
+    expect(env).toMatchObject({
+      SMTP_HOST: "smtp.provedor.com",
+      SMTP_PORT: 465,
+      SMTP_USER: "usuario",
+      SMTP_PASS: "segredo-do-smtp",
+      EMAIL_REMETENTE: "Build-Plan <contato@buildplan.com.br>",
+    });
+  });
+
+  it("exige SMTP_USER e SMTP_PASS juntos", () => {
+    expect(erros({ SMTP_HOST: "smtp.provedor.com", SMTP_USER: "usuario" })).toHaveProperty("SMTP_USER");
+    expect(erros({ SMTP_HOST: "smtp.provedor.com", SMTP_PASS: "segredo-do-smtp" })).toHaveProperty(
+      "SMTP_USER",
+    );
+  });
+});

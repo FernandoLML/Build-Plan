@@ -17,6 +17,7 @@ import { itemRoutes } from "./routes/item-compra.routes.js";
 import { sinapiRouter } from "./modules/sinapi/sinapi.routes.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 import { criarLimitadores, type LimitesRateLimit } from "./middlewares/rate-limit.middleware.js";
+import { criarMetricasRouter, metricasMiddleware } from "./lib/metricas.js";
 import { env } from "./config/env.js";
 
 export interface AppOptions {
@@ -36,6 +37,10 @@ export function createApp(opcoes: AppOptions = {}): Application {
   // confiamos em N saltos (1 = o Nginx); com 0 o header é ignorado, evitando
   // que um cliente forje o IP para escapar do rate limit quando não há proxy.
   app.set("trust proxy", opcoes.trustProxy ?? env.TRUST_PROXY);
+
+  // Métricas do Prometheus. Vem primeiro para medir também o que os próximos
+  // middlewares recusam (CORS, 429 do rate limit, corpo inválido).
+  app.use(metricasMiddleware);
 
   // Headers de segurança HTTP. A API só devolve JSON e arquivos para download,
   // então a CSP bloqueia tudo (nada aqui deve ser renderizado como página).
@@ -76,6 +81,8 @@ export function createApp(opcoes: AppOptions = {}): Application {
     app.use("/api", limitadores.geral);
     app.use("/api/auth/login", limitadores.login);
     app.use("/api/auth/register", limitadores.cadastro);
+    app.use("/api/auth/esqueci-senha", limitadores.recuperacao);
+    app.use("/api/auth/redefinir-senha", limitadores.recuperacao);
   }
 
   app.use(express.json({ limit: "1mb" }));
@@ -87,6 +94,8 @@ export function createApp(opcoes: AppOptions = {}): Application {
     res.json({ message: "Build-Plan API online" });
   });
   app.get("/api/health", (req, res) => healthController.getHealth(req, res));
+  // GET /metrics: só para o Prometheus (rede interna). Ver lib/metricas.ts.
+  app.use(criarMetricasRouter());
 
   // Autenticação
   app.use("/api/auth", authRoutes);

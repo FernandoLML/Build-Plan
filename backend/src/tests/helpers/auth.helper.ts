@@ -25,6 +25,7 @@ export async function criarUsuarioAutenticado(
     nome: `Usuário ${sufixo}`,
     email,
     senha: "senhaForte123",
+    aceitePrivacidade: true,
   });
 
   return {

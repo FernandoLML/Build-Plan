@@ -74,6 +74,7 @@ const etapa: EtapaComProgresso = {
   totalTarefas: 0,
   tarefasConcluidas: 0,
   progresso: 0,
+  totalMateriaisVinculados: 0,
 };
 
 // 2 itens cotados (320 + 200) + 1 sem preço → total 520; cobertura 2/3 = 67%.

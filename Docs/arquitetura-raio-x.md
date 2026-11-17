@@ -1,8 +1,8 @@
 # Build-Plan — Raio-X Arquitetural e Técnico
 
-> **Documento vivo** · Última revisão em 2026-11-16, com base no `main` (commit `1d7046c`, pós-merge do PR #27 — hardening e deploy) **mais** a branch `chore-pos-deploy` (backup e ajustes do primeiro deploy). Ver [Histórico de revisões](#histórico-de-revisões).
+> **Documento vivo** · Última revisão em 2026-11-17, com base no `main` (commit `a9dabf6`, pós-merge do PR #28) **mais** a branch `feature-observabilidade-recuperacao-cd` (observabilidade, recuperação de senha, conta/LGPD, RN02 e deploy automático). Ver [Histórico de revisões](#histórico-de-revisões).
 > Objetivo: consolidar decisões, padrões e convenções dos marcos M1–M7 + SINAPI (catálogo, importador, precificação automática) + Cronograma/Tarefas + exportações + segurança e produção, e servir de mapa para as próximas fases.
-> Documentos relacionados: [RFC.md](RFC.md) · [marco-m4-consolidacao.md](marco-m4-consolidacao.md) · [marco-m5-consolidacao.md](marco-m5-consolidacao.md) · [frontend-consolidacao.md](frontend-consolidacao.md) · [registro-comparacao.md](registro-comparacao.md)
+> Documentos relacionados: [RFC.md](RFC.md) · [aderencia-rfc.md](aderencia-rfc.md) · [marco-m4-consolidacao.md](marco-m4-consolidacao.md) · [marco-m5-consolidacao.md](marco-m5-consolidacao.md) · [frontend-consolidacao.md](frontend-consolidacao.md) · [registro-comparacao.md](registro-comparacao.md)
 
 ---
 
@@ -12,12 +12,13 @@
 |---|---|
 | **Arquitetura** | Monorepo com dois pacotes independentes (`backend/`, `frontend/`), cada um com `package.json` e lockfile próprios. Sem workspace raiz. |
 | **Backend** | API REST em Express 4 + TypeScript (ESM/NodeNext), camadas *schema Zod → controller → service → Prisma*. Autenticação JWT HS256 stateless. |
-| **Persistência** | PostgreSQL via Prisma 6 (16 em desenvolvimento e CI, 17 em produção). 10 models, 7 enums, 4 migrações. Busca textual SINAPI com `pg_trgm` + índice GIN; correspondência de código via `codigoNormalizado`. |
+| **Persistência** | PostgreSQL via Prisma 6 (16 em desenvolvimento e CI, 17 em produção). 11 models, 7 enums, 5 migrações. Busca textual SINAPI com `pg_trgm` + índice GIN; correspondência de código via `codigoNormalizado`. |
 | **Frontend** | SPA React 19 + Vite 8, TanStack Query 5 para estado de servidor, Context API para sessão e obra ativa, shadcn/ui (Radix) + Tailwind 3. |
-| **Testes** | Backend: Jest + Supertest contra **banco real** (sem mocks de Prisma) — 21 suítes / 190 casos. Frontend: Vitest + Testing Library em jsdom, com mocks da camada `api/` — 24 arquivos / 132 casos. ESLint do frontend zerado. |
-| **CI/CD** | 2 workflows GitHub Actions: `ci.yml` (lint · typecheck · testes com cobertura no backend e no frontend + análise SonarCloud) e a importação mensal agendada do SINAPI. Frontend publicado pela Vercel a cada push na `main`; backend atualizado manualmente na EC2. |
+| **Testes** | Backend: Jest + Supertest contra **banco real** (sem mocks de Prisma) — 25 suítes / 248 casos. Frontend: Vitest + Testing Library em jsdom, com mocks da camada `api/` — 29 arquivos / 164 casos. ESLint do frontend zerado. |
+| **CI/CD** | 2 workflows GitHub Actions: `ci.yml` (lint · typecheck · testes com cobertura no backend e no frontend + análise SonarCloud + **deploy**) e a importação mensal agendada do SINAPI. A cada push na `main`, depois do Quality Gate, o job `deploy` publica as imagens no GHCR e atualiza a EC2 por AWS SSM; o frontend é publicado pela Vercel. |
 | **Produção** | No ar desde 2026-11-16. Frontend na Vercel (`https://build-plan-two.vercel.app`); API e PostgreSQL 17 em Docker Compose numa EC2 Ubuntu, atrás de Nginx com HTTPS (`https://buildplan-api.duckdns.org/api`). Ver §5.4. |
-| **Segurança** | helmet (CSP, HSTS), CORS por allowlist, rate limit por IP, validação fail-fast do ambiente, contêiner sem root e sem portas públicas além de 80/443. |
+| **Segurança** | helmet (CSP, HSTS), CORS por allowlist, rate limit por IP, validação fail-fast do ambiente, contêiner sem root e sem portas públicas além de 80/443. Recuperação de senha com token de uso único (só o hash no banco). |
+| **Observabilidade** | `prom-client` na API (`GET /metrics`: métricas do Node.js, `http_requests_total` e `http_request_duration_seconds`), Prometheus (coleta a cada 15 s) e Grafana com dashboard provisionado. Ver §5.5. |
 | **Domínio** | Usuário → Obras → Etapas → Tarefas (cronograma e progresso físico); Materiais (catálogo por obra) vinculados a Etapas com máquina de estados auditada; Listas de Compras como snapshot, precificadas automaticamente pelo catálogo SINAPI. |
 
 ```mermaid
@@ -71,6 +72,8 @@ flowchart LR
 | `helmet` | ^7.1 | Cabeçalhos de segurança HTTP (CSP `default-src 'none'`, HSTS de 1 ano, `no-referrer`). |
 | `cors` | ^2.8 | CORS restrito à allowlist `CORS_ORIGINS` (métodos e headers explícitos). |
 | `express-rate-limit` | ^8.7 | Limite de requisições por IP (`middlewares/rate-limit.middleware.ts`). |
+| `prom-client` | ^15.1 | Métricas no formato do Prometheus (`lib/metricas.ts`). |
+| `nodemailer` | ^10.6 | Envio de e-mail por SMTP (`services/email.service.ts`): link de redefinição de senha. |
 | `exceljs` | ^4.4 | Geração do `.xlsx` da lista de compras (com `overrides` fixando `uuid` 11.1.1). |
 | `pdfkit` | ^0.20 | Geração do `.pdf` da lista de compras. |
 | `dotenv` / `dotenv-cli` | ^16.4 / ^7.4 | Carga de `.env` (app) e `.env.test` (scripts de teste). |
@@ -141,7 +144,8 @@ flowchart LR
 
 | Model (tabela) | Campos-chave | Únicos / índices | Relações |
 |---|---|---|---|
-| **Usuario** (`usuario`) | `nome`, `email`, `senhaHash`, `papel` | `email @unique` | 1:N `Obra` · 1:N `LogRastreabilidade` |
+| **Usuario** (`usuario`) | `nome`, `email`, `senhaHash`, `papel`, `consentimentoEm?` (aceite da Política de Privacidade) | `email @unique` | 1:N `Obra` · 1:N `LogRastreabilidade` · 1:N `TokenRedefinicaoSenha` |
+| **TokenRedefinicaoSenha** (`token_redefinicao_senha`) | `usuarioId`, `tokenHash` (SHA-256 do token), `expiraEm` | `tokenHash @unique` · idx `usuarioId` | N:1 `Usuario` (Cascade). O token real nunca é gravado. |
 | **Obra** (`obra`) | `nome`, `descricao?`, `endereco?`, `usuarioId` | idx `usuarioId` | N:1 `Usuario` (Cascade) · 1:N `Etapa`, `Material`, `ListaCompras` |
 | **Etapa** (`etapa`) | `nome`, `descricao?`, `ordem` (default 0), `dataInicio?`, `dataFim?`, `obraId` | idx `obraId` | N:1 `Obra` (Cascade) · 1:N `Tarefa`, `VinculoMaterialEtapa`, `ListaCompras` |
 | **Tarefa** (`tarefa`) | `titulo`, `status`, `dataInicioPrev?`, `dataFimPrev?`, `dataConclusao?`, `ordem`, `etapaId` | idx `etapaId`, `status` | N:1 `Etapa` (Cascade) |
@@ -183,6 +187,7 @@ erDiagram
 | `20260713005855_init` | Usuario, Obra, Etapa, Material, VinculoMaterialEtapa, ListaCompras, ItemCompra, LogRastreabilidade + enums iniciais e índices. |
 | `20260915014726_m3_etapas_tarefas` | Enum `StatusTarefa`, tabela `tarefa`, `etapa.ordem` passa a `NOT NULL DEFAULT 0`. |
 | `20261101024434_add_item_sinapi` | Enums `RegimeSinapi`/`TipoSinapi`, tabela `ItemSinapi`, extensão `pg_trgm` e índice GIN (SQL manual anexado à migração gerada). |
+| `20261116120000_recuperacao_senha_consentimento` | Tabela `token_redefinicao_senha` e coluna `usuario.consentimento_em` (anulável: contas anteriores não têm o registro). |
 | `20261102120000_origem_preco_enum_codigo_normalizado` | Enum `OrigemPreco` (conversão de `item_compra.origem_preco` com `USING UPPER(...)::"OrigemPreco"`, preservando dados); coluna `ItemSinapi.codigoNormalizado` com backfill SQL equivalente a `normalizarCodigoSinapi()` e índice composto de resolução de preço. |
 
 **Fluxo de migrações**
@@ -236,7 +241,7 @@ flowchart TD
 backend/
 ├── prisma/
 │   ├── schema.prisma
-│   ├── migrations/            # 4 migrações + migration_lock.toml
+│   ├── migrations/            # 5 migrações + migration_lock.toml
 │   └── seed/
 │       ├── sinapi.sample.json
 │       └── sinapi/SINAPI 202609 SC.xlsx   # planilha oficial e fixture do parser
@@ -245,11 +250,12 @@ backend/
 ├── Dockerfile                 # imagem de produção multi-stage (build/ferramentas + runtime sem root)
 └── src/
     ├── server.ts              # app.listen(env.PORT) + encerramento gracioso (SIGTERM/SIGINT)
-    ├── app.ts                 # createApp(opcoes): helmet, CORS, rate limit, rotas, errorMiddleware (importável pelo Supertest)
+    ├── app.ts                 # createApp(opcoes): métricas, helmet, CORS, rate limit, rotas, errorMiddleware (importável pelo Supertest)
     ├── config/env.ts          # validação Zod das variáveis (fail-fast, com regras extras em produção)
     ├── config/sinapi.config.ts # competência/UF/regime de referência da precificação (Zod + defaults)
     ├── errors/app-error.ts    # AppError(message, statusCode)
     ├── lib/prisma.ts          # PrismaClient singleton (globalThis)
+    ├── lib/metricas.ts        # prom-client: registro, middleware HTTP e router de GET /metrics
     ├── middlewares/           # async-handler, auth.middleware, error.middleware, rate-limit.middleware
     ├── types/express.d.ts     # augmenta Request com userId: string
     ├── schemas/               # Zod por recurso (*.schema.ts)
@@ -331,23 +337,25 @@ Cada recurso exporta tipicamente dois routers: um **aninhado** (ex.: `obraMateri
 | Login | `POST /api/auth/login` → mensagem genérica `"Credenciais inválidas."` (401) para e-mail inexistente ou senha errada. |
 | Token | `jwt.sign({}, JWT_SECRET, { subject: usuarioId, expiresIn: JWT_EXPIRES_IN, algorithm: "HS256" })`. **Único claim de domínio: `sub`** (+ `iat`/`exp`). Papel não vai no token. |
 | `authMiddleware` | Exige `Authorization: Bearer <token>`; `jwt.verify` restrito a `["HS256"]`; payload string ou sem `sub` → 401; expirado/malformado → `"Token inválido ou expirado."` (401). Injeta **`req.userId = payload.sub`** (tipado em `types/express.d.ts`). |
-| Aplicação | Por router (`router.use(authMiddleware)`), não global. Públicas: `GET /`, `GET /api/health`, `POST /api/auth/register`, `POST /api/auth/login`. |
+| Aplicação | Por router (`router.use(authMiddleware)`), não global. Públicas: `GET /`, `GET /api/health`, `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/esqueci-senha`, `POST /api/auth/redefinir-senha`. `GET /metrics` não exige token, mas só atende a rede interna (§5.5). |
+| Recuperação de senha | `recuperacao-senha.service.ts`. O pedido responde sempre igual, exista o e-mail ou não. Token de 32 bytes aleatórios, válido por 30 min e de uso único; o banco guarda só o SHA-256. Um novo pedido invalida os anteriores. O e-mail é enviado sem `await`, para o tempo de resposta não revelar se a conta existe. |
+| Conta (LGPD) | `conta.service.ts`. `PUT /api/auth/me` corrige nome e e-mail (409 se o e-mail é de outra conta). `DELETE /api/auth/me` exige a senha (400 se errada) e apaga, numa transação, obras (cascata), logs e o usuário. O cadastro exige `aceitePrivacidade: true` e grava `consentimentoEm`. |
 | Respostas | Hash de senha nunca sai (selects explícitos). Erros 500 respondem genérico. |
 | Env | `config/env.ts` valida tudo na inicialização e encerra (`process.exit(1)`) se algo for inválido, logando só o nome do campo e a mensagem (nunca o valor). `JWT_SECRET` ≥ 16 caracteres. **Em produção:** `JWT_SECRET` ≥ 32 e sem trechos de exemplo (`troque`, `changeme`, `example`…), `DATABASE_URL` sem senha de desenvolvimento, `CORS_ORIGINS` obrigatória, com `https://` e sem `localhost`. |
 | Cabeçalhos | `helmet`: CSP `default-src 'none'` (a API só devolve JSON e arquivos), HSTS de 1 ano, `Cross-Origin-Resource-Policy: cross-origin`, `Referrer-Policy: no-referrer`; `X-Powered-By` removido. |
 | CORS | Allowlist `CORS_ORIGINS` (nunca `*`), métodos e headers explícitos, `exposedHeaders: Content-Disposition, Retry-After`. Cada origem deve ser exatamente o que o navegador envia: esquema + host em minúsculas, sem barra final. |
-| Rate limit | `express-rate-limit`, contadores em memória, por IP: **API** 300 req/min (ignora `/health`); **login** 10 falhas/15 min (logins bem-sucedidos não contam); **cadastro** 10/h. Resposta `429 { message }` com headers `RateLimit` (draft-7) e `Retry-After`. Desligado quando `NODE_ENV=test`; os testes o ligam por `createApp({ rateLimit: true, limites })`. |
+| Rate limit | `express-rate-limit`, contadores em memória, por IP: **API** 300 req/min (ignora `/health`); **login** 10 falhas/15 min (logins bem-sucedidos não contam); **cadastro** 10/h; **recuperação de senha** 5/h (pedido e redefinição). Resposta `429 { message }` com headers `RateLimit` (draft-7) e `Retry-After`. Desligado quando `NODE_ENV=test`; os testes o ligam por `createApp({ rateLimit: true, limites })`. |
 | IP do cliente | `app.set("trust proxy", TRUST_PROXY)`: `1` em produção (o Nginx), `0` fora. Sem isso, o rate limit veria todos os clientes com o IP do proxy; com um valor alto demais, o `X-Forwarded-For` seria forjável. |
 | Limites de payload | `express.json({ limit: "1mb" })`; `express.text` para `text/csv`/`text/plain` até 2 MB (UC01). |
 
-**Lacunas conhecidas:** rate limit em memória (vale para uma única instância e zera ao reiniciar), sem refresh token, sem autorização por `papel`, token em `localStorage` no front (trade-off documentado em `lib/token.ts`).
+**Lacunas conhecidas:** rate limit em memória (vale para uma única instância e zera ao reiniciar), sem refresh token, trocar a senha não invalida os JWT já emitidos (stateless, expiram em 8 h), sem autorização por `papel`, token em `localStorage` no front (trade-off documentado em `lib/token.ts`).
 
 ### 3.4 Tratamento de erros e utilitários
 
 | Utilitário | Arquivo | Comportamento |
 |---|---|---|
 | `AppError` | `errors/app-error.ts` | `new AppError(mensagem, statusCode = 400)`; `Object.setPrototypeOf` garante `instanceof` correto. |
-| `asyncHandler` | `middlewares/async-handler.ts` | `Promise.resolve(fn(req,res,next)).catch(next)` — elimina `try/catch` nos controllers. |
+| `asyncHandler` | `middlewares/async-handler.ts` | `Promise.resolve(fn(req,res,next)).catch(next)` — elimina `try/catch` nos controllers. Antes de chamar o handler, registra o padrão da rota para as métricas (`marcarRota`). |
 | `errorMiddleware` | `middlewares/error.middleware.ts` | Registrado **por último** em `app.ts`. |
 
 Contrato de resposta de erro:
@@ -369,7 +377,8 @@ Contrato de resposta de erro:
 
 | Serviço | Destaques |
 |---|---|
-| `etapa.service` | Listagem retorna `totalTarefas`, `tarefasConcluidas` e `progresso` (0–100). |
+| `etapa.service` | Listagem retorna `totalTarefas`, `tarefasConcluidas`, `progresso` (0–100) e `totalMateriaisVinculados`, usado pelo aviso da RN02 ao excluir a etapa. |
+| `email.service` | Envio por SMTP (nodemailer). Sem `SMTP_HOST` nada é enviado: em desenvolvimento a mensagem vai para o console; em produção só se registra que não houve envio, sem o conteúdo (ele carrega o link secreto). |
 | `tarefa.service` | `resolverDataConclusao()` centraliza a regra: concluir sem data → `new Date()` (inclusive ao **criar** já `CONCLUIDA`); reenviar `CONCLUIDA` **não** sobrescreve a data existente; sair de `CONCLUIDA` → `null`. No `PUT`, `descricao`, `dataInicioPrev`, `dataFimPrev` e `dataConclusao` aceitam `null` (limpa o campo); ausente mantém o valor. |
 | `vinculo-material.service` | Máquina RN01 (`TRANSICOES_VALIDAS`), preenche `dataRecebimento`/`dataAplicacao` sem sobrescrever, log na mesma transação; valida material e etapa da **mesma obra** (400). |
 | `lista-compras.service` | Gera snapshot a partir dos vínculos da etapa (400 se vazia); totais `{ totalItens, itensSemPreco, totalOrcado }`. **Precificação automática** (PR #21): `resolverPrecosReferencia()` faz **uma única** consulta `itemSinapi.findMany({ codigoNormalizado: { in: [...] }, uf, mês, ano, regime })` na competência de `sinapiConfig` e casa os vínculos por `Map` em memória (sem N+1). |
@@ -414,10 +423,13 @@ frontend/src/
 
 | Rota | Página | Tela / marco |
 |---|---|---|
-| `/login`, `/register` | `LoginPage`, `RegisterPage` | Públicas |
+| `/login`, `/register` | `LoginPage`, `RegisterPage` | Públicas. O cadastro exige o aceite da Política de Privacidade |
+| `/esqueci-senha`, `/redefinir-senha` | `EsqueciSenhaPage`, `RedefinirSenhaPage` | Públicas. Pedido do link e definição da nova senha (token na query) |
+| `/privacidade` | `PrivacidadePage` | Pública. Política de Privacidade (RFC §6.2) |
+| `/conta` | `ContaPage` | Privada. Editar nome e e-mail; excluir a conta com confirmação por senha |
 | `/obras` | `ObrasPage` | Tela 1 — home pós-login, seleção da obra ativa |
 | `/dashboard` | `DashboardPage` | KPIs da obra (M5), progresso físico e suprimentos por etapa |
-| `/cronograma` | `CronogramaPage` | Tarefas por etapa, troca rápida de status (otimista) e progresso físico (PR #22) |
+| `/cronograma` | `CronogramaPage` | Tarefas por etapa, troca rápida de status (otimista) e progresso físico (PR #22). Exclusão de etapa com aviso de materiais vinculados (RN02, `ExcluirEtapaDialog`) |
 | `/memorial` | `MemorialPage` | UC01 — dropzone, stepper, revisão e importação |
 | `/materiais` | `MateriaisPage` | Catálogo, etapas e vínculos |
 | `/compras` | `ComprasPage` | Listas de compras, "Informar preço" com sugestão SINAPI, exportação em Excel, PDF e CSV (`ExportacaoCard`) |
@@ -492,8 +504,8 @@ Convenções: queries dependentes de obra usam `enabled: !!obraId`; mutações i
 | Concorrência | `--runInBand` + `maxWorkers: 1` (banco compartilhado); `testTimeout: 20000`; `clearMocks: true`. |
 | Fixtures | `tests/helpers/auth.helper.ts`: `criarUsuarioAutenticado()` (registra via API com e-mail único e devolve token), `criarObra`, `criarEtapa`, `criarMaterial`. Cenários multiusuário verificam isolamento (404 para recurso alheio). |
 | Scripts | `test` (carrega `.env.test`; `pretest` migra), `test:watch`, `test:coverage` (igual a `test` + `--coverage`; `pretest:coverage` migra), `test:ci` (usa env do job, flags `--ci --coverage`), `lint`. |
-| Cobertura | `collectCoverageFrom: src/**/*.ts` exceto specs, `src/tests/**`, `server.ts`, `scripts/**` e `types/**`. Reporters `text-summary` + `lcov` → `backend/coverage/lcov.info`. Sem thresholds locais (o Quality Gate do SonarCloud é o critério). Linha de base em 2026-11-12: **92,3% linhas**, 80,9% branches. |
-| Suítes | **21 arquivos `*.spec.ts` (190 casos)**: auth, obra, etapa, tarefa, material, vínculo, lista-compras, memorial, export, dashboard, log, cors, security (helmet, rate limit, trust proxy) e test-db-guard (em `src/tests/`); env (em `src/config/`); lista-compras.dados, .xlsx e .pdf (em `src/services/export/`); sinapi, sinapi.parser e sinapi.import (em `src/modules/sinapi/`). |
+| Cobertura | `collectCoverageFrom: src/**/*.ts` exceto specs, `src/tests/**`, `server.ts`, `scripts/**` e `types/**`. Reporters `text-summary` + `lcov` → `backend/coverage/lcov.info`. Sem thresholds locais (o Quality Gate do SonarCloud é o critério). Em 2026-11-17: **95,4% linhas**, 87,2% branches. |
+| Suítes | **25 arquivos `*.spec.ts` (248 casos)**: auth, obra, etapa, tarefa, material, vínculo, lista-compras, memorial, export, dashboard, log, cors, security (helmet, rate limit, trust proxy), metricas, recuperacao-senha, conta (LGPD) e test-db-guard (em `src/tests/`); env (em `src/config/`); email.service (em `src/services/`); lista-compras.dados, .xlsx e .pdf (em `src/services/export/`); sinapi, sinapi.parser e sinapi.import (em `src/modules/sinapi/`). |
 | Trava do banco | `garantirBancoDeTeste()` (`tests/helpers/test-db.ts`), chamada no topo do `setup.ts`, aborta a execução se o nome do banco ou do schema não contiver `test`. Existe porque os testes fazem `TRUNCATE` e apagam o catálogo SINAPI: rodar `test:ci` localmente com o `.env` de desenvolvimento apagava o banco. **Não remover.** |
 
 > Convenção: **todo teste do backend deve terminar em `.spec.ts`** — é o único padrão reconhecido pelo `testMatch`. A suíte SINAPI foi renomeada de `.test.ts` para `.spec.ts` por esse motivo. Ela semeia e limpa `ItemSinapi` em `beforeAll`/`afterAll`; o `resetDatabase()` global não trunca essa tabela, então o seed persiste entre os casos da suíte.
@@ -510,8 +522,8 @@ Convenções: queries dependentes de obra usam `enabled: !!obraId`; mutações i
 | Ambiente | `jsdom`; `setup.ts` importa `@testing-library/jest-dom/vitest`, faz `cleanup()`, `vi.clearAllMocks()` e `localStorage.clear()` após cada teste, e aplica **polyfills exigidos pelo Radix** (`matchMedia`, `ResizeObserver`, `scrollIntoView`, `hasPointerCapture`, `releasePointerCapture`). |
 | Render | `renderComProviders(ui, { rota, client })` (`test/utils.tsx`): `QueryClient` novo por teste (`retry: false`, `gcTime: 0`) + `MemoryRouter`. |
 | Mocks | `vi.mock` na **fronteira `@/api/*`** e em `@/contexts/useObraAtiva` / `./useAuth`; nunca no Axios. Interação via `@testing-library/user-event`. |
-| Suítes | **24 arquivos (132 casos)**: contextos (`AuthContext`, `ProtectedRoute`, `ObraContext`); páginas (`DashboardPage`, `CronogramaPage`, `ComprasPage`, `RastreabilidadePage`, `MemorialPage`); componentes (`InformarPrecoDialog`, `MaterialFormDialog`, `MaterialDetailPanel`, `TarefaFormDialog`, `EtapaTarefasCard`, `MemorialDropzone`, `TabelaMateriaisExtraidos`, `ObraCard`, `ObraFormDialog`); hooks (`useTarefas`); regras puras em `lib/` (`tarefas`, `suprimentos`, `sinapi`, `memorialTemplate`, `slug`, `apiBaseUrl`). |
-| Cobertura | `test:coverage` (`vitest run --coverage`), provider **v8**; `include: src/**/*.{ts,tsx}`, exclui testes, `src/test/**`, `components/ui/**` (shadcn), `main.tsx`, `vite-env.d.ts` e `types/**`. Reporters `text-summary` + `lcov` → `frontend/coverage/lcov.info`. Linha de base em 2026-11-12: **50,6% linhas**, 49,2% branches (páginas de Obras, Materiais e auth ainda sem teste). |
+| Suítes | **29 arquivos (164 casos)**: contextos (`AuthContext`, `ProtectedRoute`, `ObraContext`); páginas (`DashboardPage`, `CronogramaPage`, `ComprasPage`, `RastreabilidadePage`, `MemorialPage`, `ContaPage`, login/cadastro/privacidade em `AuthPages`, `RecuperacaoSenha`); componentes (`ExcluirEtapaDialog`, `InformarPrecoDialog`, `MaterialFormDialog`, `MaterialDetailPanel`, `TarefaFormDialog`, `EtapaTarefasCard`, `MemorialDropzone`, `TabelaMateriaisExtraidos`, `ObraCard`, `ObraFormDialog`); hooks (`useTarefas`); regras puras em `lib/` (`tarefas`, `suprimentos`, `sinapi`, `memorialTemplate`, `slug`, `apiBaseUrl`, `erroApi`). |
+| Cobertura | `test:coverage` (`vitest run --coverage`), provider **v8**; `include: src/**/*.{ts,tsx}`, exclui testes, `src/test/**`, `components/ui/**` (shadcn), `main.tsx`, `vite-env.d.ts` e `types/**`. Reporters `text-summary` + `lcov` → `frontend/coverage/lcov.info`. Em 2026-11-17: **67,6% linhas**, 65,9% branches (páginas de Obras e Materiais ainda sem teste). |
 | Execução local no Windows | Rodar `npm test` pelo PowerShell/terminal do VS Code. No Git Bash, `npx vitest run <arquivo>` pode falhar com *"failed to find the current suite"* (divergência `C:/` × `c:/` no caminho do drive), inclusive no código original. |
 
 ### 5.3 Pipelines (GitHub Actions)
@@ -521,9 +533,10 @@ Convenções: queries dependentes de obra usam `enabled: !!obraId`; mutações i
 | **`ci.yml`** — job `backend` | push em `main`/`develop`, **todo** `pull_request` e `workflow_dispatch` (sem filtro de pastas) | `npm ci --ignore-scripts` → `npm rebuild bcrypt @prisma/engines` → `prisma:generate` → `lint` → `typecheck` → `prisma:deploy` → `test:ci` (cobertura) → reescreve `SF:` do lcov para `backend/…` → artefato `coverage-backend` | Service `postgres:16-alpine`, `schema=public` |
 | **`ci.yml`** — job `frontend` | idem | `npm ci --ignore-scripts` → `lint` → `typecheck` → `test:coverage` → reescreve `SF:` para `frontend/…` → artefato `coverage-frontend` → `build` | — |
 | **`ci.yml`** — job `sonarcloud` | após `backend` e `frontend` | checkout com `fetch-depth: 0` → baixa os dois lcov → `SonarSource/sonarqube-scan-action` v8.4.1 (config em `sonar-project.properties`, com `sonar.qualitygate.wait=true`: **o job falha se o Quality Gate reprovar**). Sem o secret `SONAR_TOKEN`, emite *warning* e não analisa | — |
+| **`ci.yml`** — job `deploy` | após `backend`, `frontend` e `sonarcloud`, **só em push na `main`** | login no GHCR com o `GITHUB_TOKEN` → `docker build` das imagens `build-plan-api` (target `runtime`) e `build-plan-tools` (target `build`), com as tags do commit e `latest` → `docker push` → assume a role da AWS por **OIDC** (`aws-actions/configure-aws-credentials`) → `aws ssm send-command` executa `deploy/deploy.sh <commit>` na EC2 → acompanha o comando e falha se o health-check não passar. Sem as variables `AWS_REGION`, `AWS_DEPLOY_ROLE_ARN` e `EC2_INSTANCE_ID`, publica as imagens e avisa que pulou a EC2 | — |
 | **`sinapi-import.yml`** | `cron: "0 6 5 * *"` (dia 5, 06:00 UTC) + `workflow_dispatch` com input `source` | `npm ci --ignore-scripts` → `npm rebuild @prisma/engines` → `prisma:generate` → `npm run sinapi:import` | `secrets.DATABASE_URL` (produção); `concurrency` sem cancelamento |
 
-Todos usam Node 22.x com cache npm por lockfile; o `ci.yml` cancela execuções anteriores do mesmo ref (`concurrency`).
+Todos usam Node 22.x com cache npm por lockfile; o `ci.yml` cancela execuções anteriores do mesmo ref (`concurrency`), exceto na `main`, onde um deploy em andamento termina antes do próximo.
 
 **Hardening de supply chain (regras `githubactions` do SonarCloud, PR #24):**
 
@@ -544,7 +557,7 @@ Todos usam Node 22.x com cache npm por lockfile; o `ci.yml` cancela execuções 
 2. **Script de teste no CI:** o job `backend` usa `npm run test:ci` (variáveis do job, sem `pretest`/`.env.test`); as migrações são aplicadas no passo `prisma migrate deploy` anterior.
 3. ~~**Lint ausente no CI**~~ ✅ — `npm run lint` roda nos dois jobs; o backend ganhou ESLint (0 problemas em 84 arquivos, sem alterações de código).
 4. **Import SINAPI** não roda `prisma migrate deploy` — assume que o banco de destino já está migrado. O workflow não alcança o banco de produção atual (§7, item 23).
-5. **Deploy:** o frontend é publicado pela Vercel a cada push na `main` (e ganha um preview por PR). O backend **não** tem CD: atualiza-se na EC2 com `git pull && docker compose -f docker-compose.prod.yml up -d --build` (§5.4).
+5. **Deploy:** o frontend é publicado pela Vercel a cada push na `main` (e ganha um preview por PR). O backend é publicado pelo job `deploy` (§5.4): sem SSH e sem chave da AWS guardada no GitHub. As permissões do job (`packages: write`, `id-token: write`) valem só para ele; os demais ficam com `contents: read`.
 6. ~~**Execução agendada do import quebrada**~~ ✅ — no cron, `inputs.source` é vazio e o workflow define `SINAPI_SOURCE=""`; com `??` a string vazia não caía no default (`ENOENT`). **Corrigido** em `fix-debitos-tecnicos-n2` (`resolverFonteSinapi`: `||` + `trim`). Ainda assim o job agendado só recarrega a amostra (§7, item 14).
 7. **Texto do workflow:** o nome do passo foi corrigido para "replace por competência"; o input `source` ainda sugere URL de forma genérica, embora planilhas só possam ser lidas de caminho local.
 
@@ -574,9 +587,12 @@ flowchart LR
 | Frontend | Vercel (Hobby), `https://build-plan-two.vercel.app` | Root Directory `frontend`. `vercel.json`: rewrite de todas as rotas para `index.html` (SPA), headers de segurança e cache longo em `/assets/`. `VITE_API_URL` definida em Production e Preview. |
 | API | EC2 `us-east-2`, `https://buildplan-api.duckdns.org/api` | Imagem `backend/Dockerfile` (multi-stage, `node:22-bookworm-slim`). Contêiner sem root, `read_only`, `cap_drop: ALL`, `no-new-privileges`, publicado só em `127.0.0.1:3333`. `HEALTHCHECK` em `/api/health`. |
 | Banco | Mesmo compose | `postgres:17-alpine`, sem porta publicada (só a rede interna do compose). As migrações rodam no serviço `migrate`, e a API só sobe depois que ele termina com sucesso. |
-| Proxy | Nginx no host | `deploy/nginx.conf.example`: `default_server` responde 444 a quem bate direto no IP; repassa `X-Forwarded-For`/`X-Forwarded-Proto`; `client_max_body_size 2m`; `/metrics` restrito a `127.0.0.1`. Certbot emite e renova o certificado. |
+| Proxy | Nginx no host | `deploy/nginx.conf.example`: `default_server` responde 444 a quem bate direto no IP; repassa `X-Forwarded-For`/`X-Forwarded-Proto`; `client_max_body_size 2m`; qualquer `/metrics*` responde 404. Certbot emite e renova o certificado. |
 | Rede | Security Group | Entrada: 22 (apenas o IP do administrador), 80 e 443. As portas 3333 e 5432 não são alcançáveis de fora. |
 | DNS | DuckDNS | Subdomínio gratuito apontando para o Elastic IP. Trocar por domínio próprio exige mudar o `server_name` do Nginx, emitir novo certificado e atualizar `VITE_API_URL` (com redeploy na Vercel). |
+| Deploy | Job `deploy` do `ci.yml` + `deploy/deploy.sh` | O CI publica as imagens no GHCR e dispara o `deploy.sh` na EC2 pelo AWS SSM (Run Command). O script grava `API_IMAGE`/`TOOLS_IMAGE` no `.env`, faz `pull`, recria os contêineres (migrações antes da API) e só termina com sucesso se `/api/health` responder. Rollback: `./deploy.sh <commit>`. A EC2 tem uma role com `AmazonSSMManagedInstanceCore`; o GitHub assume, por OIDC, uma role que só pode enviar comandos a esta instância. |
+| Observabilidade | Serviços `prometheus` e `grafana` (profile `observability`) | Ver §5.5. Ambos só em `127.0.0.1`, acessados por túnel SSH. |
+| E-mail | SMTP externo (opcional) | `SMTP_*` no `deploy/.env`. Sem ele a API funciona, mas não envia o link de redefinição de senha. |
 | SINAPI | Serviço `sinapi` (profile `tools`) | `docker compose -f docker-compose.prod.yml --profile tools run --rm sinapi` importa a planilha versionada (4.135 insumos de SC, 09/2026). |
 | Backup | `deploy/backup.sh` + cron | `pg_dump --clean --if-exists` compactado em `~/backups`, validado (gzip íntegro e marcador de fim do dump) antes de substituir os antigos; retenção de 14 dias. |
 
@@ -585,6 +601,32 @@ flowchart LR
 - `CORS_ORIGINS` (EC2) tem de ser exatamente a URL do frontend. Se o domínio da Vercel mudar, login e cadastro falham com erro de CORS até o `.env` ser atualizado e a API recriada (`up -d`).
 - `VITE_API_URL` (Vercel) é embutida no build: mudar o endereço da API exige **Redeploy**.
 - `TRUST_PROXY=1` pressupõe exatamente um proxy (o Nginx). Colocar outro na frente (CDN, load balancer) exige ajustar o valor, senão o rate limit passa a contar o IP do proxy.
+
+### 5.5 Observabilidade
+
+```mermaid
+flowchart LR
+  subgraph EC2["EC2 · rede interna do Docker Compose"]
+    A["api<br/>prom-client · GET /metrics"]
+    P["prometheus<br/>coleta a cada 15 s · retenção 7 d / 300 MB"]
+    G["grafana<br/>datasource e dashboard provisionados"]
+    P -- "http://api:3333/metrics" --> A
+    G -- "PromQL" --> P
+  end
+  U["Administrador"] -- "túnel SSH · localhost:3000" --> G
+  X["Internet"] -. "/metrics → 404 (Nginx)" .-> A
+```
+
+| Peça | Detalhes |
+|---|---|
+| Métricas da API | `lib/metricas.ts`. Métricas padrão do Node.js (`collectDefaultMetrics`: memória, CPU, event loop, GC) e duas métricas HTTP com os labels `method`, `route` e `status_code`: o contador `http_requests_total` e o histograma `http_request_duration_seconds` (buckets de 5 ms a 5 s). |
+| Label `route` | É o **padrão** da rota (`/api/obras/:obraId/etapas`), nunca a URL com o id: uma série por id faria a memória do Prometheus crescer sem limite. `resolverRota()` troca, no prefixo dos routers aninhados, cada valor de parâmetro pelo nome. O `asyncHandler` registra a rota antes do handler, porque o Express restaura `req.baseUrl` ao repassar um erro. Requisições que não chegam a um handler (404, 401 por falta de token) usam o label `nao_mapeada`. |
+| Proteção do `/metrics` | Duas barreiras independentes. O Nginx responde 404 a qualquer `/metrics*`. A API só atende o caminho exato (router `strict` e `caseSensitive`) e recusa a requisição que traz `X-Forwarded-For`, ou seja, que passou pelo proxy. O Prometheus fala com a API pela rede interna, sem proxy. |
+| Prometheus | `deploy/prometheus.yml`: jobs `buildplan-api` (`api:3333`) e `prometheus`. Limite de 192 MB. |
+| Grafana | `deploy/grafana/provisioning/` cria o datasource (uid `prometheus`) e carrega `dashboards/buildplan-api.json`: RPS total e por rota, latência p50/p95/p99 e p95 por rota, respostas por classe (2xx a 5xx), taxa de erros 5xx, tempo no ar, memória, CPU e atraso do event loop. Limite de 384 MB. |
+| Acesso | `ssh -L 3000:127.0.0.1:3000 ...` e depois `http://localhost:3000`. Nenhuma porta nova no Security Group. |
+
+**Limitações:** não há alertas (ninguém é avisado se a API cair) nem métricas do PostgreSQL e do host; os logs continuam só no `docker logs`.
 
 ---
 
@@ -613,15 +655,20 @@ Base: `http://localhost:3333` em desenvolvimento e `https://buildplan-api.duckdn
 |---|---|:-:|---|---|
 | GET | `/` | — | Sinal de vida da API | 200 |
 | GET | `/api/health` | — | Health-check | 200 |
+| GET | `/metrics` | rede interna | Métricas no formato do Prometheus (404 para quem chega pelo proxy) | 200 |
 | POST | `/api/auth/register` | — | Cadastrar usuário e emitir token | 201 |
 | POST | `/api/auth/login` | — | Autenticar e emitir token | 200 |
+| POST | `/api/auth/esqueci-senha` | — | Pedir o link de redefinição de senha (resposta igual com ou sem conta) | 200 |
+| POST | `/api/auth/redefinir-senha` | — | Trocar a senha com o token recebido por e-mail | 200 |
 | GET | `/api/auth/me` | 🔒 | Perfil do usuário autenticado | 200 |
+| PUT | `/api/auth/me` | 🔒 | Corrigir nome e/ou e-mail | 200 |
+| DELETE | `/api/auth/me` | 🔒 | Excluir a conta e todos os dados (senha no corpo) | 204 |
 | GET | `/api/obras` | 🔒 | Listar obras do usuário (mais recentes primeiro) | 200 |
 | POST | `/api/obras` | 🔒 | Criar obra | 201 |
 | GET | `/api/obras/:id` | 🔒 | Detalhar obra | 200 |
 | PUT | `/api/obras/:id` | 🔒 | Atualizar obra (parcial, ≥1 campo) | 200 |
 | DELETE | `/api/obras/:id` | 🔒 | Remover obra (cascata) | 204 |
-| GET | `/api/obras/:obraId/etapas` | 🔒 | Listar etapas com progresso de tarefas | 200 |
+| GET | `/api/obras/:obraId/etapas` | 🔒 | Listar etapas com progresso de tarefas e total de materiais vinculados | 200 |
 | POST | `/api/obras/:obraId/etapas` | 🔒 | Criar etapa | 201 |
 | PUT | `/api/etapas/:etapaId` | 🔒 | Atualizar etapa | 200 |
 | DELETE | `/api/etapas/:etapaId` | 🔒 | Remover etapa | 204 |
@@ -689,7 +736,7 @@ Base: `http://localhost:3333` em desenvolvimento e `https://buildplan-api.duckdn
 | 5 | Média | `ItemSinapi` fora da convenção `snake_case`/`@@map`. | Padronizar em migração dedicada (renomear tabela/colunas). |
 | 6 | ~~Média~~ ✅ | `origemPreco` era string livre. | **Resolvido** no PR #21: enum `OrigemPreco` com migração que preserva os dados. |
 | 7 | ~~Média~~ ✅ | ~~CORS aberto, sem rate limit em `/auth/login`.~~ | **Resolvido**: allowlist `CORS_ORIGINS` e `express-rate-limit` (login: 10 falhas/15 min; cadastro: 10/h; API: 300/min por IP), com `trust proxy` para o Nginx. |
-| 8 | Baixa | `LogRastreabilidade.usuario` com `ON DELETE RESTRICT` impede excluir usuário com logs. | Decidir política (manter auditoria ⇒ soft-delete de usuário). |
+| 8 | ~~Baixa~~ ✅ | `LogRastreabilidade.usuario` com `ON DELETE RESTRICT` impedia excluir usuário com logs. | **Resolvido** sem mudar a FK: `conta.service.excluirConta` apaga obras (cascata) e logs antes do usuário, na mesma transação. |
 | 9 | Baixa | Dois estilos de organização no backend (camadas vs. `modules/`). | Registrar ADR com o padrão oficial. |
 | 10 | ~~Baixa~~ ✅ | Comentários residuais "AJUSTE o import…", "upsert" e referência a `sinapi_trgm.sql` inexistente. | **Resolvido** em `fix-debitos-tecnicos-n2`. |
 | 11 | Baixa | Dependência `cn` não utilizada no frontend; versões de TypeScript diferentes entre pacotes; `jest@30` com `ts-jest@29`/`@types/jest@29`. | Alinhar dependências. |
@@ -704,11 +751,15 @@ Base: `http://localhost:3333` em desenvolvimento e `https://buildplan-api.duckdn
 | 20 | ~~Baixa~~ ✅ | Dashboard exibia 0% em "Suprimentos por etapa" enquanto os vínculos carregavam e listava "já aplicados" como ponto de atenção (apontamentos do PR #16, junto com a falta de testes de progresso e de criação de material). | **Resolvido**: skeleton durante o carregamento, "aplicados" como informação, `lib/suprimentos.ts` + testes de Dashboard e `MaterialFormDialog`. |
 | 21 | Baixa | O backend não valida `dataFimPrev ≥ dataInicioPrev` em tarefas (só o formulário do front valida). | Validar no service considerando os valores já gravados (update parcial). |
 | 22 | Média | O backup de produção (`deploy/backup.sh`) grava no disco da própria EC2: não sobrevive à perda da instância. | Enviar os dumps para fora (S3 ou download periódico) ou ativar snapshots do EBS no Lifecycle Manager. |
-| 23 | Média | O workflow `sinapi-import.yml` espera um `DATABASE_URL` alcançável pela internet, mas o banco de produção não tem porta pública. A atualização mensal do SINAPI em produção é manual (serviço `sinapi` do compose). | Decidir: remover o agendamento, ou rodar a importação a partir da EC2 (cron ou runner self-hosted). |
+| 23 | Média | O workflow `sinapi-import.yml` espera um `DATABASE_URL` alcançável pela internet, mas o banco de produção não tem porta pública. A atualização mensal do SINAPI em produção é manual (serviço `sinapi` do compose). | Disparar o serviço `sinapi` pela mesma via do deploy (AWS SSM), agora disponível. |
 | 24 | Baixa | Versões diferentes do PostgreSQL: 16 em desenvolvimento e no CI, 17 em produção. | Alinhar `docker-compose.yml` e o service do `ci.yml` para a 17. |
-| 25 | Baixa | Backend sem CD: cada atualização exige SSH e rebuild na EC2 (lento na `t3.micro`). | Publicar a imagem pelo CI (GHCR) e apenas fazer `pull` na EC2. |
+| 25 | ~~Baixa~~ ✅ | Backend sem CD: cada atualização exigia SSH e rebuild na EC2. | **Resolvido**: job `deploy` (GHCR + AWS SSM) e `deploy/deploy.sh`. |
 | 26 | Baixa | Rate limit em memória: zera ao reiniciar a API e não funciona com mais de uma instância. | Store compartilhado (Redis) se a API for escalada horizontalmente. |
 | 27 | Baixa | `npm audit` aponta vulnerabilidades em dependências transitivas (além do `xlsx`, item 16). | PR dedicado de atualização de dependências. |
+| 28 | Média | Worker de alertas de prazo previsto no RFC (§5.1, marco M6) não implementado. O envio de e-mail já existe. | Expor `dataInicio`/`dataFim` das etapas na API e no formulário, agendar a verificação diária e enviar o alerta. Ver [aderencia-rfc.md](aderencia-rfc.md). |
+| 29 | Média | Sem alertas de monitoramento: os painéis existem, mas ninguém é avisado se a API cair ou a taxa de erros subir. | Regra de alerta no Grafana (API fora do ar, 5xx acima de 5%) com envio por e-mail. |
+| 30 | Baixa | Trocar ou redefinir a senha não invalida os JWT já emitidos. | Gravar `senhaAlteradaEm` e recusar tokens com `iat` anterior, ou migrar para sessão com refresh token. |
+| 31 | Baixa | As imagens do GHCR precisam ser públicas para a EC2 baixá-las sem credencial. | Aceitável (o código é público e os segredos ficam no `.env`); a alternativa é um token de leitura na EC2. |
 
 ---
 
@@ -721,6 +772,8 @@ Base: `http://localhost:3333` em desenvolvimento e `https://buildplan-api.duckdn
 | `JWT_EXPIRES_IN` | backend | — | `8h` | Validade do token. |
 | `CORS_ORIGINS` | backend | ✔ em produção | `http://localhost:5173` (fora de produção) | Origens do frontend liberadas pelo CORS, separadas por vírgula; `*` é rejeitado. Em produção exige `https://`. |
 | `TRUST_PROXY` | backend | — | `1` em produção, `0` fora | Nº de proxies confiáveis (Nginx); define o IP do cliente usado pelo rate limit. |
+| `FRONTEND_URL` | backend | — | 1ª origem de `CORS_ORIGINS` | Base dos links enviados por e-mail (redefinição de senha). |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_REMETENTE` | backend | — | sem host (envio desligado), porta `587` | Servidor SMTP. `SMTP_USER` e `SMTP_PASS` são exigidos juntos. Porta 465 usa TLS direto; as demais exigem STARTTLS. |
 | `PORT` | backend | — | `3333` | Porta HTTP. |
 | `NODE_ENV` | backend | — | `development` | Controla log do Prisma e singleton global. |
 | `SINAPI_SOURCE` | backend (script) | — | `prisma/seed/sinapi.sample.json` | Fonte do importador: JSON (arquivo ou URL) ou planilha `.xlsx` (só arquivo). Vazia/só espaços → default. |
@@ -730,6 +783,9 @@ Base: `http://localhost:3333` em desenvolvimento e `https://buildplan-api.duckdn
 | `SINAPI_UF_PADRAO`, `SINAPI_MES_PADRAO`, `SINAPI_ANO_PADRAO`, `SINAPI_REGIME_PADRAO` | backend (API) | — | `SC`, `9`, `2026`, `NAO_DESONERADO` | Competência de referência da precificação automática (`config/sinapi.config.ts`). |
 | `VITE_API_URL` | frontend | ✔ na Vercel (com `https://`) | `http://localhost:3333/api` | Base do Axios, embutida no build. Em produção: `https://buildplan-api.duckdns.org/api`. |
 | `POSTGRES_USER`, `POSTGRES_DB`, `POSTGRES_PASSWORD` | `deploy/.env` (EC2) | ✔ | — | Credenciais do Postgres de produção; o compose monta a `DATABASE_URL` da API a partir delas. |
+| `API_IMAGE`, `TOOLS_IMAGE` | `deploy/.env` (EC2) | — | `buildplan-api`, `buildplan-tools` (build local) | Imagens usadas pelo compose. Gravadas pelo `deploy.sh`; não editar à mão. |
+| `GRAFANA_ADMIN_PASSWORD`, `COMPOSE_PROFILES` | `deploy/.env` (EC2) | — | vazios | Senha do Grafana e `observability` para manter Prometheus e Grafana em todo `up -d`. |
+| `AWS_REGION`, `AWS_DEPLOY_ROLE_ARN`, `EC2_INSTANCE_ID` | GitHub Variables (`ci.yml`) | ✔ p/ deploy | — | Destino do job `deploy`; ausentes → só publica as imagens. |
 | `BACKUP_DIR`, `BACKUP_RETENCAO_DIAS` | `deploy/backup.sh` | — | `~/backups`, `14` | Destino e retenção dos dumps. |
 | `VITE_SINAPI_UF`, `VITE_SINAPI_REGIME` | frontend | — | `SC`, `NAO_DESONERADO` | Filtros do autocomplete SINAPI (`lib/sinapi.ts`); devem bater com `SINAPI_*_PADRAO`. |
 | `POSTGRES_*`, `PGADMIN_*` | raiz (compose) | ✔ p/ compose | — | Containers locais. |
@@ -760,7 +816,8 @@ npm run lint             # deve terminar com 0 problemas
 npm run build            # tsc --noEmit && vite build
 
 # Produção (na EC2, em ~/Build-Plan/deploy)
-git pull && docker compose -f docker-compose.prod.yml up -d --build   # atualizar a API
+./deploy.sh latest                                                    # atualizar a API à mão (o CI faz isso a cada merge)
+./deploy.sh <hash-do-commit>                                          # rollback
 docker compose -f docker-compose.prod.yml ps                          # api e postgres "healthy"
 docker compose -f docker-compose.prod.yml logs -f api
 docker compose -f docker-compose.prod.yml --profile tools run --rm sinapi   # importar o SINAPI
@@ -776,5 +833,6 @@ docker compose -f docker-compose.prod.yml --profile tools run --rm sinapi   # im
 | 2026-11-12 | `c0158be` (PR #22) + `fix-debitos-tecnicos-n2` | Incorpora PRs #20–#22 (parser/planilha, precificação automática, enum `OrigemPreco`, `codigoNormalizado`, Cronograma). Débitos da N2: N+1 na precificação, importador com Zod e fallback de `SINAPI_SOURCE`, datas anuláveis e ciclo de `dataConclusao`, `uf`/`regime` no autocomplete, ESLint zerado, testes de Dashboard/suprimentos/material, limpeza de comentários. Marcadores 🚧 removidos. Conferido: `tsc --noEmit` (back e front), backend 135/135, frontend 96/96, `npm run lint` com 0 problemas. |
 | 2026-11-12 | `6912b19` (PR #23) + `chore-sonarqube-quality` | Etapa 3: cobertura lcov (Jest e `@vitest/coverage-v8`), ESLint no backend, `ci.yml` unificado (lint · tsc · testes com cobertura · build · SonarCloud) no lugar de `backend-ci.yml`/`frontend-ci.yml`, `sonar-project.properties`. Linha de base de cobertura: backend 92,3% / frontend 50,6% (linhas). |
 | 2026-11-12 | PR #24 (Quality Gate) | Correção dos 11 apontamentos de segurança do SonarCloud (todos em `ci.yml`): `npm ci --ignore-scripts` + `npm rebuild` nominal, fim do `npx`, actions fixadas por SHA (scan-action v5 → v8.4.1, que tinha vulnerabilidade conhecida). Node 22 no CI, escopo do Sonar migrado para exclusões (novo modelo de escopo), `sonar.qualitygate.wait=true`. Mesmo hardening no `sinapi-import.yml`. |
+| 2026-11-17 | `a9dabf6` (PR #28) + `feature-observabilidade-recuperacao-cd` | Etapa 6: observabilidade (`prom-client`, Prometheus, Grafana, nova §5.5); recuperação de senha por e-mail (`nodemailer`, `TokenRedefinicaoSenha`); conta e LGPD (consentimento no cadastro, edição de perfil, exclusão da conta); RN02 (aviso ao excluir etapa); deploy automático da API (job `deploy`, GHCR + AWS SSM, `deploy.sh`). Novo documento [aderencia-rfc.md](aderencia-rfc.md). Achados 8 e 25 resolvidos; 28–31 abertos. Conferido: backend 248/248 (95,4% de linhas), frontend 164/164 (67,6%), lint e `tsc --noEmit` sem erros; pilha completa (API, Postgres, Prometheus, Grafana) validada localmente em Docker. |
 | 2026-11-16 | `1d7046c` (PR #27) + `chore-pos-deploy` | Incorpora os PRs #25 (limpeza do SonarCloud: A/A/A), #26 (exportação `.xlsx`/`.pdf`, logo e favicon) e #27 (helmet, rate limit, `trust proxy`, validação de ambiente de produção, `Dockerfile`, `deploy/`, `vercel.json`). Registra o primeiro deploy (EC2 + Vercel) na nova §5.4, o `backup.sh`, a trava do banco de teste e os achados 22–27. Conferido: backend 190/190, frontend 132/132, lint e `tsc --noEmit` sem erros; backup e restauração testados num Postgres 17 descartável. |
 

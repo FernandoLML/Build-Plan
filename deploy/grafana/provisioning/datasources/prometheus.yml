@@ -1,0 +1,16 @@
+# Caminho: /deploy/grafana/provisioning/datasources/prometheus.yml
+# Datasource criado automaticamente quando o Grafana inicia.
+# O `uid` é fixo porque o dashboard (dashboards/buildplan-api.json) o referencia.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy # o Grafana consulta o Prometheus pela rede interna do Docker
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s # igual ao scrape_interval do Prometheus

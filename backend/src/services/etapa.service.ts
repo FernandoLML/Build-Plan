@@ -15,6 +15,8 @@ interface EtapaComProgresso {
   totalTarefas: number;
   tarefasConcluidas: number;
   progresso: number; // 0–100 (%)
+  /** Materiais vinculados: o front avisa antes de excluir a etapa (RN02). */
+  totalMateriaisVinculados: number;
 }
 
 export class EtapaService {
@@ -66,6 +68,7 @@ export class EtapaService {
       orderBy: [{ ordem: "asc" }, { createdAt: "asc" }],
       include: {
         tarefas: { select: { status: true } },
+        _count: { select: { vinculos: true } },
       },
     });
 
@@ -85,6 +88,7 @@ export class EtapaService {
         totalTarefas: total,
         tarefasConcluidas: concluidas,
         progresso,
+        totalMateriaisVinculados: etapa._count.vinculos,
       };
     });
   }

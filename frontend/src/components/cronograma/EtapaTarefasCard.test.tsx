@@ -43,6 +43,7 @@ const etapa: EtapaComProgresso = {
   totalTarefas: 4,
   tarefasConcluidas: 1,
   progresso: 25,
+  totalMateriaisVinculados: 0,
 };
 
 const tarefas: Tarefa[] = [
@@ -114,9 +115,9 @@ describe("EtapaTarefasCard — renderização", () => {
     render();
     await screen.findByTestId("tarefa-t1");
 
-    await user.click(screen.getByRole("button", { name: /Fundação/ }));
+    await user.click(screen.getByRole("button", { name: /^Fundação/ }));
     expect(screen.queryByTestId("tarefa-t1")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Fundação/ }));
+    await user.click(screen.getByRole("button", { name: /^Fundação/ }));
     expect(screen.getByTestId("tarefa-t1")).toBeInTheDocument();
   });
 });

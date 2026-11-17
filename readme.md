@@ -76,6 +76,9 @@ Tudo isso a partir de cadastro manual e informações de documentos técnicos.
 - **Dashboard**
   Indicadores da obra: progresso das tarefas, situação dos materiais e total orçado
 
+- **Conta e privacidade**
+  Recuperação de senha por e-mail, edição dos dados pessoais e exclusão da conta com todos os dados (LGPD)
+
 ---
 
 ## Tecnologias
@@ -88,6 +91,8 @@ Tudo isso a partir de cadastro manual e informações de documentos técnicos.
 | Testes | Jest + Supertest (backend), Vitest + Testing Library (frontend) |
 | Qualidade | ESLint, GitHub Actions e SonarCloud (Quality Gate obrigatório nos PRs) |
 | Produção | AWS EC2 (API e banco em Docker, atrás de Nginx com HTTPS) e Vercel (frontend) |
+| CI/CD | GitHub Actions: testes, SonarCloud e deploy automático da API (imagens no GHCR + AWS SSM) |
+| Observabilidade | Prometheus (métricas da API via `prom-client`) e Grafana (dashboard provisionado) |
 
 ---
 
@@ -100,10 +105,16 @@ Navegador ──HTTPS──> Vercel (frontend React, estático)
                     ├─ Nginx (certificado Let's Encrypt)
                     └─ Docker Compose
                          ├─ API Node (Express)
-                         └─ PostgreSQL 17
+                         ├─ PostgreSQL 17
+                         ├─ Prometheus  (coleta /metrics da API)
+                         └─ Grafana     (painéis, acesso por túnel SSH)
+
+GitHub Actions ── imagens ──> GHCR ── AWS SSM ──> EC2 (deploy a cada merge na main)
 ```
 
 A API aplica cabeçalhos de segurança (helmet), CORS restrito ao endereço do frontend, limite de requisições por IP e validação das variáveis de ambiente na inicialização.
+
+Cada merge na `main` passa por lint, testes e Quality Gate do SonarCloud; só então o pipeline publica as imagens e atualiza a API em produção, sem acesso manual ao servidor. O frontend é publicado pela Vercel.
 
 O passo a passo completo do deploy está em [deploy/README.md](deploy/README.md).
 
@@ -173,11 +184,12 @@ O backend precisa de um arquivo `backend/.env.test` apontando para um banco ou s
 |---|---|
 | `backend/` | API REST (Express + Prisma), migrações e importador SINAPI |
 | `frontend/` | Aplicação web (React + Vite) |
-| `deploy/` | Arquivos e guia de produção: Docker Compose, Nginx, backup |
+| `deploy/` | Arquivos e guia de produção: Docker Compose, Nginx, backup, deploy automático, Prometheus e Grafana |
 | `Docs/` | RFC, diagramas e documentação técnica |
-| `.github/workflows/` | Integração contínua (lint, testes, SonarCloud) |
+| `.github/workflows/` | CI/CD: lint, testes, SonarCloud e deploy |
 
 Documentação técnica detalhada: [Docs/arquitetura-raio-x.md](Docs/arquitetura-raio-x.md).
+O que foi entregue de cada requisito do RFC, e o que mudou em relação a ele: [Docs/aderencia-rfc.md](Docs/aderencia-rfc.md).
 
 ---
 
