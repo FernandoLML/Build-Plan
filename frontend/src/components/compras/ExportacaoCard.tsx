@@ -87,7 +87,7 @@ export function ExportacaoCard({ listaId, etapaNome, onExcluir }: Readonly<Expor
             onChange={(e) => setPretoEBranco(e.target.checked)}
             className="h-4 w-4 rounded border-slate-700 bg-slate-950 accent-indigo-600"
           />
-          Versão preto e branco (Excel e PDF), para impressoras sem cor
+          <span>Versão preto e branco (Excel e PDF), para impressoras sem cor</span>
         </label>
 
         {erro && (
