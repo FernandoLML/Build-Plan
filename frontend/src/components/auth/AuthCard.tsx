@@ -33,12 +33,9 @@ export function AuthCard({ subtitulo, erro, sucesso, children }: Readonly<AuthCa
           </p>
         )}
         {sucesso && (
-          <p
-            role="status"
-            className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-400"
-          >
+          <output className="block rounded-md border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-400">
             {sucesso}
-          </p>
+          </output>
         )}
 
         {children}

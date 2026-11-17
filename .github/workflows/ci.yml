@@ -285,6 +285,7 @@ jobs:
               --instance-id "$EC2_INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
             case "$STATUS" in
               Success | Failed | Cancelled | TimedOut) break ;;
+              *) ;; # Pending, InProgress, Delayed: continua aguardando
             esac
           done
 

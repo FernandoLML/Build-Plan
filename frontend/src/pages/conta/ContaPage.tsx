@@ -89,7 +89,7 @@ export function ContaPage() {
         <h2 className="font-display text-base font-semibold text-slate-100">Dados pessoais</h2>
 
         {erroPerfil && <p role="alert" className="text-sm text-red-400">{erroPerfil}</p>}
-        {perfilSalvo && <p role="status" className="text-sm text-emerald-400">Dados atualizados.</p>}
+        {perfilSalvo && <output className="block text-sm text-emerald-400">Dados atualizados.</output>}
 
         <div className="space-y-1.5">
           <Label htmlFor="nome" className="text-slate-300">Nome</Label>

@@ -25,7 +25,7 @@ cd "$(dirname "$0")"
 ENV_FILE=".env"
 COMPOSE=(docker compose -f docker-compose.prod.yml)
 
-[ -f "$ENV_FILE" ] || { echo "ERRO: $ENV_FILE não encontrado em $(pwd)." >&2; exit 1; }
+[[ -f "$ENV_FILE" ]] || { echo "ERRO: $ENV_FILE não encontrado em $(pwd)." >&2; exit 1; }
 
 # Define VARIAVEL=valor no .env, substituindo a linha se ela já existir.
 definir() {

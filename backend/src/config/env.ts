@@ -121,26 +121,7 @@ const envSchema = z
       erro("SMTP_USER", "Defina SMTP_USER e SMTP_PASS juntos (ou nenhum dos dois).");
     }
 
-    if (dados.NODE_ENV !== "production") return;
-
-    // ---- Regras extras de produção ----
-    if (dados.JWT_SECRET.length < JWT_MIN_PRODUCAO) {
-      erro("JWT_SECRET", `Em produção, JWT_SECRET deve ter ao menos ${JWT_MIN_PRODUCAO} caracteres.`);
-    }
-    if (pareceValorDeExemplo(dados.JWT_SECRET)) {
-      erro("JWT_SECRET", "JWT_SECRET parece um valor de exemplo. Gere um segredo aleatório.");
-    }
-    if (pareceValorDeExemplo(dados.DATABASE_URL)) {
-      erro("DATABASE_URL", "DATABASE_URL usa uma senha de exemplo/desenvolvimento.");
-    }
-    if (dados.CORS_ORIGINS.length === 0) {
-      erro("CORS_ORIGINS", "Em produção, CORS_ORIGINS é obrigatória (URL do frontend).");
-    }
-    for (const origem of dados.CORS_ORIGINS) {
-      if (ehOrigemValida(origem) && !ehOrigemDeProducao(origem)) {
-        erro("CORS_ORIGINS", `Em produção, a origem "${origem}" deve usar https:// e não pode ser localhost.`);
-      }
-    }
+    if (dados.NODE_ENV === "production") validarProducao(dados, erro);
   })
   .transform((dados) => {
     const origens = dados.CORS_ORIGINS.length > 0 ? dados.CORS_ORIGINS : ["http://localhost:5173"];
@@ -152,6 +133,30 @@ const envSchema = z
       EMAIL_REMETENTE: dados.EMAIL_REMETENTE ?? REMETENTE_PADRAO,
     };
   });
+
+/** Regras extras de produção: segredos reais e origens com HTTPS. */
+function validarProducao(
+  dados: { JWT_SECRET: string; DATABASE_URL: string; CORS_ORIGINS: string[] },
+  erro: (campo: string, message: string) => void,
+): void {
+  if (dados.JWT_SECRET.length < JWT_MIN_PRODUCAO) {
+    erro("JWT_SECRET", `Em produção, JWT_SECRET deve ter ao menos ${JWT_MIN_PRODUCAO} caracteres.`);
+  }
+  if (pareceValorDeExemplo(dados.JWT_SECRET)) {
+    erro("JWT_SECRET", "JWT_SECRET parece um valor de exemplo. Gere um segredo aleatório.");
+  }
+  if (pareceValorDeExemplo(dados.DATABASE_URL)) {
+    erro("DATABASE_URL", "DATABASE_URL usa uma senha de exemplo/desenvolvimento.");
+  }
+  if (dados.CORS_ORIGINS.length === 0) {
+    erro("CORS_ORIGINS", "Em produção, CORS_ORIGINS é obrigatória (URL do frontend).");
+  }
+  for (const origem of dados.CORS_ORIGINS) {
+    if (ehOrigemValida(origem) && !ehOrigemDeProducao(origem)) {
+      erro("CORS_ORIGINS", `Em produção, a origem "${origem}" deve usar https:// e não pode ser localhost.`);
+    }
+  }
+}
 
 export type Env = z.infer<typeof envSchema>;
 
