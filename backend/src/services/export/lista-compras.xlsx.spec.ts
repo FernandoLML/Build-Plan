@@ -12,7 +12,7 @@ import {
   calcularLarguras,
   gerarXlsxListaCompras,
 } from "./lista-compras.xlsx.js";
-import { CORES, argb } from "./marca.js";
+import { PALETA_COLORIDA, PALETA_PRETO_E_BRANCO, argb } from "./marca.js";
 import type { ItemExportacao, ListaComprasExportacao } from "./lista-compras.dados.js";
 
 const itens: ItemExportacao[] = [
@@ -32,8 +32,8 @@ function dados(overrides: Partial<ListaComprasExportacao> = {}): ListaComprasExp
   };
 }
 
-async function abrir(d: ListaComprasExportacao): Promise<ExcelJS.Worksheet> {
-  const buffer = await gerarXlsxListaCompras(d);
+async function abrir(d: ListaComprasExportacao, paleta = PALETA_COLORIDA): Promise<ExcelJS.Worksheet> {
+  const buffer = await gerarXlsxListaCompras(d, paleta);
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer as unknown as ArrayBuffer);
   const ws = wb.getWorksheet("Lista de Compras");
@@ -79,7 +79,7 @@ describe("gerarXlsxListaCompras", () => {
     ]);
     const cell = linha.getCell(1);
     expect(cell.font?.bold).toBe(true);
-    expect(corDeFundo(cell)).toBe(argb(CORES.indigoClaro));
+    expect(corDeFundo(cell)).toBe(argb(PALETA_COLORIDA.destaqueClaro));
     expect(cell.border?.top?.style).toBe("thin");
   });
 
@@ -106,7 +106,7 @@ describe("gerarXlsxListaCompras", () => {
     const cotado = ws.getRow(PRIMEIRA_LINHA_ITEM + 2);
 
     for (let c = 1; c <= COLUNAS.length; c++) {
-      expect(corDeFundo(pendente.getCell(c))).toBe(argb(CORES.ambarClaro));
+      expect(corDeFundo(pendente.getCell(c))).toBe(argb(PALETA_COLORIDA.alertaClaro));
       expect(corDeFundo(cotado.getCell(c))).toBeUndefined();
     }
     expect(pendente.getCell(1).value).toBe("—");
@@ -145,6 +145,28 @@ describe("gerarXlsxListaCompras", () => {
     expect(ws.getCell(`F${r + 1}`).value).toMatchObject({ formula: `SUM(F${r}:F${r})` });
     expect(ws.getCell(`G${r + 1}`).value).toBe("");
     expect(ws.getCell(`A${r + 3}`).value).toBe("Todos os itens possuem preço definido.");
+  });
+});
+
+describe("gerarXlsxListaCompras — versão preto e branco", () => {
+  it("troca as cores da marca por cinzas e ajusta a legenda", async () => {
+    const ws = await abrir(dados(), PALETA_PRETO_E_BRANCO);
+    const pendente = ws.getRow(PRIMEIRA_LINHA_ITEM + 1);
+    const r = PRIMEIRA_LINHA_ITEM + itens.length;
+
+    expect(corDeFundo(ws.getCell("A1"))).toBe(argb(PALETA_PRETO_E_BRANCO.destaque));
+    expect(corDeFundo(ws.getRow(LINHA_CABECALHO).getCell(1))).toBe(argb(PALETA_PRETO_E_BRANCO.destaqueClaro));
+    expect(corDeFundo(pendente.getCell(1))).toBe(argb(PALETA_PRETO_E_BRANCO.alertaClaro));
+    expect(String(ws.getCell(`A${r + 2}`).value)).toContain("Linhas em cinza");
+  });
+
+  it("mantém os mesmos dados e fórmulas da versão colorida", async () => {
+    const colorida = await abrir(dados());
+    const pb = await abrir(dados(), PALETA_PRETO_E_BRANCO);
+    const r = PRIMEIRA_LINHA_ITEM + itens.length;
+
+    expect(pb.getCell(`F${r}`).value).toEqual(colorida.getCell(`F${r}`).value);
+    expect(pb.getRow(PRIMEIRA_LINHA_ITEM).values).toEqual(colorida.getRow(PRIMEIRA_LINHA_ITEM).values);
   });
 });
 

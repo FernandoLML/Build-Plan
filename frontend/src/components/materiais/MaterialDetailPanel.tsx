@@ -4,6 +4,8 @@
 import { Link2, Pencil, PackageSearch, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Material } from "@/types/material";
+import { formatarQuantidade } from "@/lib/format";
+import type { SaldoMaterial } from "@/lib/suprimentos";
 
 export interface VinculoResumo {
   id: string;
@@ -15,6 +17,8 @@ interface MaterialDetailPanelProps {
   material: Material | null;
   vinculos: VinculoResumo[];
   carregandoVinculos?: boolean;
+  /** Quanto do material já foi vinculado e quanto ainda está livre. */
+  saldo?: SaldoMaterial | null;
   onVincular: (material: Material) => void;
   onEditar: (material: Material) => void;
   onExcluir: (material: Material) => void;
@@ -24,6 +28,7 @@ export function MaterialDetailPanel({
   material,
   vinculos,
   carregandoVinculos,
+  saldo,
   onVincular,
   onEditar,
   onExcluir,
@@ -61,6 +66,21 @@ export function MaterialDetailPanel({
           <p className="mt-1 font-display text-lg font-semibold text-slate-100">{material.unidade}</p>
         </div>
       </div>
+
+      {saldo && !carregandoVinculos && (
+        <p data-testid="saldo-detalhe" className="text-xs text-slate-400">
+          Vinculado às etapas:{" "}
+          <span className="font-medium tabular-nums text-slate-200">
+            {formatarQuantidade(saldo.vinculado)} {material.unidade}
+          </span>{" "}
+          · disponível:{" "}
+          <span
+            className={`font-medium tabular-nums ${saldo.disponivel > 0 ? "text-slate-200" : "text-amber-300"}`}
+          >
+            {formatarQuantidade(saldo.disponivel)} {material.unidade}
+          </span>
+        </p>
+      )}
 
       {/* Etapas vinculadas */}
       <div className="space-y-2">

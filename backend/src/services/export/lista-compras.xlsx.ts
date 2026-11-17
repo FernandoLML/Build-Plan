@@ -7,12 +7,12 @@
 //   1     faixa de título (marca)
 //   3..5  bloco informativo (obra, etapa, datas, contagens)
 //   7     cabeçalho da tabela (congelado, com autofiltro)
-//   8..   itens (PENDENTE em âmbar claro)
+//   8..   itens (PENDENTE destacado: âmbar claro, ou cinza na versão P&B)
 //   +1    Total Orçado = SUM(subtotais)
 //   +3    legenda
 
 import ExcelJS from "exceljs";
-import { CORES, argb } from "./marca.js";
+import { PALETA_COLORIDA, argb, type PaletaExportacao } from "./marca.js";
 import {
   formatarDataHora,
   formatarMoeda,
@@ -46,19 +46,20 @@ export const COLUNAS: readonly ColunaDef[] = [
   { titulo: "Origem do Preço", min: 16, max: 18, alinhamento: "center" },
 ];
 
-const COR_ORIGEM: Record<ItemExportacao["origemPreco"], string> = {
-  SINAPI: CORES.indigo,
-  MANUAL: CORES.ardosia600,
-  PENDENTE: CORES.ambar800,
-};
+function corOrigem(c: PaletaExportacao, origem: ItemExportacao["origemPreco"]): string {
+  if (origem === "SINAPI") return c.destaque;
+  if (origem === "PENDENTE") return c.alerta;
+  return c.textoSecundario;
+}
 
-const BORDA_FINA: Partial<ExcelJS.Border> = { style: "thin", color: { argb: argb(CORES.ardosia200) } };
-const BORDAS_FINAS: Partial<ExcelJS.Borders> = {
-  top: BORDA_FINA,
-  left: BORDA_FINA,
-  bottom: BORDA_FINA,
-  right: BORDA_FINA,
-};
+function bordaFina(c: PaletaExportacao): Partial<ExcelJS.Border> {
+  return { style: "thin", color: { argb: argb(c.borda) } };
+}
+
+function bordasFinas(c: PaletaExportacao): Partial<ExcelJS.Borders> {
+  const borda = bordaFina(c);
+  return { top: borda, left: borda, bottom: borda, right: borda };
+}
 
 function preenchimento(hex: string): ExcelJS.Fill {
   return { type: "pattern", pattern: "solid", fgColor: { argb: argb(hex) } };
@@ -91,18 +92,18 @@ export function calcularLarguras(itens: readonly ItemExportacao[]): number[] {
   });
 }
 
-function escreverTitulo(ws: ExcelJS.Worksheet): void {
+function escreverTitulo(ws: ExcelJS.Worksheet, c: PaletaExportacao): void {
   ws.mergeCells("A1:G1");
   const titulo = ws.getCell("A1");
   titulo.value = "Build-Plan  ·  Lista de Compras";
-  titulo.font = { name: "Calibri", size: 16, bold: true, color: { argb: argb("#FFFFFF") } };
-  titulo.fill = preenchimento(CORES.indigo);
+  titulo.font = { name: "Calibri", size: 16, bold: true, color: { argb: argb(c.textoSobreDestaque) } };
+  titulo.fill = preenchimento(c.destaque);
   titulo.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
   ws.getRow(1).height = 32;
   ws.getRow(2).height = 8;
 }
 
-function escreverInformacoes(ws: ExcelJS.Worksheet, dados: ListaComprasExportacao): void {
+function escreverInformacoes(ws: ExcelJS.Worksheet, c: PaletaExportacao, dados: ListaComprasExportacao): void {
   const pendentes = dados.itens.filter((i) => i.origemPreco === "PENDENTE").length;
   const linhas: [string, string | number, string, string | number][] = [
     ["Obra", dados.obraNome, "Emitida em", formatarDataHora(dados.emitidaEm)],
@@ -120,37 +121,37 @@ function escreverInformacoes(ws: ExcelJS.Worksheet, dados: ListaComprasExportaca
     ws.getCell(`F${r}`).value = valor2;
 
     for (const col of ["A", "E"]) {
-      ws.getCell(`${col}${r}`).font = { bold: true, color: { argb: argb(CORES.ardosia600) } };
+      ws.getCell(`${col}${r}`).font = { bold: true, color: { argb: argb(c.textoSecundario) } };
     }
     for (const col of ["B", "F"]) {
       const cell = ws.getCell(`${col}${r}`);
-      cell.font = { color: { argb: argb(CORES.ardosia900) } };
+      cell.font = { color: { argb: argb(c.texto) } };
       cell.alignment = { horizontal: "left" };
     }
     for (const col of ["A", "B", "C", "D", "E", "F", "G"]) {
-      ws.getCell(`${col}${r}`).fill = preenchimento(CORES.ardosia50);
+      ws.getCell(`${col}${r}`).fill = preenchimento(c.fundoAlternado);
     }
   });
 
   if (pendentes > 0) {
-    ws.getCell("F5").font = { bold: true, color: { argb: argb(CORES.ambar800) } };
+    ws.getCell("F5").font = { bold: true, color: { argb: argb(c.alerta) } };
   }
 }
 
-function escreverCabecalhoTabela(ws: ExcelJS.Worksheet): void {
+function escreverCabecalhoTabela(ws: ExcelJS.Worksheet, c: PaletaExportacao): void {
   const linha = ws.getRow(LINHA_CABECALHO);
   COLUNAS.forEach((coluna, idx) => {
     const cell = linha.getCell(idx + 1);
     cell.value = coluna.titulo;
-    cell.font = { bold: true, color: { argb: argb(CORES.ardosia900) } };
-    cell.fill = preenchimento(CORES.indigoClaro);
-    cell.border = BORDAS_FINAS;
+    cell.font = { bold: true, color: { argb: argb(c.texto) } };
+    cell.fill = preenchimento(c.destaqueClaro);
+    cell.border = bordasFinas(c);
     cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
   });
   linha.height = 22;
 }
 
-function escreverItem(ws: ExcelJS.Worksheet, r: number, item: ItemExportacao): void {
+function escreverItem(ws: ExcelJS.Worksheet, c: PaletaExportacao, r: number, item: ItemExportacao): void {
   const linha = ws.getRow(r);
   const subtotal = subtotalItem(item);
   const pendente = item.origemPreco === "PENDENTE";
@@ -183,27 +184,33 @@ function escreverItem(ws: ExcelJS.Worksheet, r: number, item: ItemExportacao): v
 
   COLUNAS.forEach((coluna, idx) => {
     const cell = linha.getCell(idx + 1);
-    cell.border = BORDAS_FINAS;
+    cell.border = bordasFinas(c);
     cell.alignment = { vertical: "middle", horizontal: coluna.alinhamento, wrapText: idx === 1 };
-    if (pendente) cell.fill = preenchimento(CORES.ambarClaro);
+    if (pendente) cell.fill = preenchimento(c.alertaClaro);
   });
 
   if (item.codigoSinapi === null) {
-    linha.getCell(1).font = { color: { argb: argb(CORES.ardosia400) } };
+    linha.getCell(1).font = { color: { argb: argb(c.textoApagado) } };
   }
-  linha.getCell(7).font = { bold: true, color: { argb: argb(COR_ORIGEM[item.origemPreco]) } };
+  linha.getCell(7).font = { bold: true, color: { argb: argb(corOrigem(c, item.origemPreco)) } };
 }
 
-function escreverListaVazia(ws: ExcelJS.Worksheet, r: number): void {
+function escreverListaVazia(ws: ExcelJS.Worksheet, c: PaletaExportacao, r: number): void {
   ws.mergeCells(`A${r}:G${r}`);
   const cell = ws.getCell(`A${r}`);
   cell.value = "Nenhum item nesta lista.";
-  cell.font = { italic: true, color: { argb: argb(CORES.ardosia600) } };
+  cell.font = { italic: true, color: { argb: argb(c.textoSecundario) } };
   cell.alignment = { horizontal: "center" };
-  cell.border = BORDAS_FINAS;
+  cell.border = bordasFinas(c);
 }
 
-function escreverTotal(ws: ExcelJS.Worksheet, r: number, ultimaLinhaItem: number, dados: ListaComprasExportacao): void {
+function escreverTotal(
+  ws: ExcelJS.Worksheet,
+  c: PaletaExportacao,
+  r: number,
+  ultimaLinhaItem: number,
+  dados: ListaComprasExportacao,
+): void {
   const pendentes = dados.itens.filter((i) => i.origemPreco === "PENDENTE").length;
   ws.mergeCells(`A${r}:E${r}`);
 
@@ -224,32 +231,35 @@ function escreverTotal(ws: ExcelJS.Worksheet, r: number, ultimaLinhaItem: number
   observacao.alignment = { horizontal: "center", vertical: "middle" };
 
   const bordaTopo: Partial<ExcelJS.Borders> = {
-    top: { style: "medium", color: { argb: argb(CORES.indigo) } },
-    bottom: BORDA_FINA,
+    top: { style: "medium", color: { argb: argb(c.destaque) } },
+    bottom: bordaFina(c),
   };
   for (const col of ["A", "F", "G"]) {
     const cell = ws.getCell(`${col}${r}`);
-    cell.fill = preenchimento(CORES.indigoClaro);
+    cell.fill = preenchimento(c.destaqueClaro);
     cell.border = bordaTopo;
-    cell.font = { bold: true, size: 12, color: { argb: argb(CORES.indigo) } };
+    cell.font = { bold: true, size: 12, color: { argb: argb(c.destaque) } };
   }
-  observacao.font = { bold: true, size: 10, color: { argb: argb(CORES.ambar800) } };
+  observacao.font = { bold: true, size: 10, color: { argb: argb(c.alerta) } };
   ws.getRow(r).height = 24;
 }
 
-function escreverLegenda(ws: ExcelJS.Worksheet, r: number, temPendentes: boolean): void {
+function escreverLegenda(ws: ExcelJS.Worksheet, c: PaletaExportacao, r: number, temPendentes: boolean): void {
   ws.mergeCells(`A${r}:G${r}`);
   const cell = ws.getCell(`A${r}`);
   cell.value = temPendentes
-    ? "Linhas em amarelo: itens sem preço definido (PENDENTE). Preencha o Preço Unitário e o Subtotal e o Total Orçado serão recalculados automaticamente."
+    ? `Linhas ${c.nomeDestaquePendente}: itens sem preço definido (PENDENTE). Preencha o Preço Unitário e o Subtotal e o Total Orçado serão recalculados automaticamente.`
     : "Todos os itens possuem preço definido.";
-  cell.font = { italic: true, size: 9, color: { argb: argb(CORES.ardosia600) } };
+  cell.font = { italic: true, size: 9, color: { argb: argb(c.textoSecundario) } };
   cell.alignment = { wrapText: true, vertical: "top" };
   ws.getRow(r).height = 30;
 }
 
-/** Gera o arquivo .xlsx da lista de compras. */
-export async function gerarXlsxListaCompras(dados: ListaComprasExportacao): Promise<Buffer> {
+/** Gera o arquivo .xlsx da lista de compras (colorido por padrão). */
+export async function gerarXlsxListaCompras(
+  dados: ListaComprasExportacao,
+  c: PaletaExportacao = PALETA_COLORIDA,
+): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Build-Plan";
   wb.created = dados.emitidaEm;
@@ -273,12 +283,12 @@ export async function gerarXlsxListaCompras(dados: ListaComprasExportacao): Prom
     ws.getColumn(idx + 1).width = largura;
   });
 
-  escreverTitulo(ws);
-  escreverInformacoes(ws, dados);
-  escreverCabecalhoTabela(ws);
+  escreverTitulo(ws, c);
+  escreverInformacoes(ws, c, dados);
+  escreverCabecalhoTabela(ws, c);
 
-  dados.itens.forEach((item, idx) => escreverItem(ws, PRIMEIRA_LINHA_ITEM + idx, item));
-  if (dados.itens.length === 0) escreverListaVazia(ws, PRIMEIRA_LINHA_ITEM);
+  dados.itens.forEach((item, idx) => escreverItem(ws, c, PRIMEIRA_LINHA_ITEM + idx, item));
+  if (dados.itens.length === 0) escreverListaVazia(ws, c, PRIMEIRA_LINHA_ITEM);
 
   const ultimaLinhaItem = PRIMEIRA_LINHA_ITEM + Math.max(dados.itens.length, 1) - 1;
   if (dados.itens.length > 0) {
@@ -289,8 +299,8 @@ export async function gerarXlsxListaCompras(dados: ListaComprasExportacao): Prom
   }
 
   const linhaTotal = ultimaLinhaItem + 1;
-  escreverTotal(ws, linhaTotal, ultimaLinhaItem, dados);
-  escreverLegenda(ws, linhaTotal + 2, dados.itens.some((i) => i.origemPreco === "PENDENTE"));
+  escreverTotal(ws, c, linhaTotal, ultimaLinhaItem, dados);
+  escreverLegenda(ws, c, linhaTotal + 2, dados.itens.some((i) => i.origemPreco === "PENDENTE"));
 
   return Buffer.from(await wb.xlsx.writeBuffer());
 }

@@ -3,11 +3,14 @@
 // - Ownership validado pela cadeia Material/Etapa -> Obra -> Usuario.
 // - Máquina de estados RN01: PREVISTO -> RECEBIDO -> APLICADO.
 // - Toda transição grava um LogRastreabilidade atomicamente ($transaction).
+// - A soma das quantidades vinculadas de um material nunca passa da
+//   quantidade dele no catálogo (saldo; ver material-saldo.ts).
 
 import { Prisma, StatusVinculo } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../errors/app-error.js";
 import type { CreateVinculoInput } from "../schemas/vinculo.schema.js";
+import { travarMaterial, somarVinculado, formatarQuantidade } from "./material-saldo.js";
 
 // Transições permitidas pela RN01. Avançar apenas um passo por vez;
 // não é permitido pular etapas nem retroceder.
@@ -31,13 +34,14 @@ export class VinculoMaterialService {
 
   /**
    * Vincula um material a uma etapa.
-   * Valida que ambos pertencem ao usuário (404) e à MESMA obra (400),
-   * e trata a duplicidade imposta por @@unique([materialId, etapaId]) (409).
+   * Valida que ambos pertencem ao usuário (404) e à MESMA obra (400), que a
+   * quantidade cabe no saldo do material (400) e trata a duplicidade imposta
+   * por @@unique([materialId, etapaId]) (409).
    */
   public async criar(usuarioId: string, data: CreateVinculoInput) {
     const material = await prisma.material.findFirst({
       where: { id: data.materialId, obra: { usuarioId } },
-      select: { id: true, obraId: true },
+      select: { id: true, obraId: true, unidade: true },
     });
     if (!material) {
       throw new AppError("Material não encontrado.", 404);
@@ -64,15 +68,35 @@ export class VinculoMaterialService {
       throw new AppError("Este material já está vinculado a esta etapa.", 409);
     }
 
+    const quantidade = new Prisma.Decimal(data.quantidade);
+
     try {
-      return await prisma.vinculoMaterialEtapa.create({
-        data: {
-          materialId: data.materialId,
-          etapaId: data.etapaId,
-          quantidade: new Prisma.Decimal(data.quantidade),
-          local: data.local,
-          // status assume o default PREVISTO definido no schema.
-        },
+      // Saldo conferido e vínculo criado na mesma transação, com a linha do
+      // material travada: dois vínculos simultâneos não conseguem, juntos,
+      // passar da quantidade do catálogo.
+      return await prisma.$transaction(async (tx) => {
+        const total = await travarMaterial(tx, data.materialId);
+        const vinculado = await somarVinculado(tx, data.materialId);
+        const disponivel = total.sub(vinculado);
+
+        if (quantidade.gt(disponivel)) {
+          const un = material.unidade;
+          throw new AppError(
+            `Quantidade acima do disponível. Saldo para vincular: ${formatarQuantidade(disponivel)} ${un} ` +
+              `(catálogo: ${formatarQuantidade(total)} ${un}; já vinculado: ${formatarQuantidade(vinculado)} ${un}).`,
+            400,
+          );
+        }
+
+        return tx.vinculoMaterialEtapa.create({
+          data: {
+            materialId: data.materialId,
+            etapaId: data.etapaId,
+            quantidade,
+            local: data.local,
+            // status assume o default PREVISTO definido no schema.
+          },
+        });
       });
     } catch (err) {
       // Rede de segurança para corrida: viola o índice único composto.

@@ -2,19 +2,72 @@
 // Identidade visual dos documentos exportados (mesma paleta do frontend).
 // A logo é o ícone "Boxes" (lucide, licença ISC) em branco sobre um quadrado
 // índigo, exatamente como em frontend/public/favicon.svg e no menu lateral.
+//
+// Há duas paletas com os mesmos papéis: a colorida (padrão) e a preto e
+// branco, pensada para impressoras sem cor ou com pouca tinta. Na P&B os
+// textos ficam mais escuros e os destaques viram tons de cinza bem distintos,
+// para nada sair "apagado" na impressão.
 
-export const CORES = {
-  indigo: "#4F46E5",
-  indigoClaro: "#EEF2FF",
-  ardosia900: "#0F172A",
-  ardosia600: "#475569",
-  ardosia400: "#94A3B8",
-  ardosia200: "#E2E8F0",
-  ardosia50: "#F8FAFC",
-  ambar800: "#92400E",
-  ambarClaro: "#FEF3C7",
-  esmeralda700: "#047857",
-} as const;
+/** Papel de cada cor no documento (o gerador nunca usa um hexadecimal solto). */
+export interface PaletaExportacao {
+  /** Logo, título "Lista de Compras", linhas de destaque e valor total. */
+  destaque: string;
+  /** Fundo do cabeçalho da tabela e da linha de total. */
+  destaqueClaro: string;
+  /** Texto sobre o fundo de destaque (faixa de título do Excel, ícone da logo). */
+  textoSobreDestaque: string;
+  texto: string;
+  textoSecundario: string;
+  /** Traço "—" de valor ausente e rodapé. */
+  textoApagado: string;
+  borda: string;
+  /** Linhas alternadas (zebra) e cartões de resumo. */
+  fundoAlternado: string;
+  /** Texto de itens sem preço (PENDENTE). */
+  alerta: string;
+  /** Fundo das linhas sem preço (PENDENTE). */
+  alertaClaro: string;
+  /** Valor do Total Orçado no resumo. */
+  positivo: string;
+  /** Texto da legenda que explica o destaque das linhas pendentes. */
+  nomeDestaquePendente: string;
+}
+
+export const PALETA_COLORIDA: PaletaExportacao = {
+  destaque: "#4F46E5", // índigo
+  destaqueClaro: "#EEF2FF",
+  textoSobreDestaque: "#FFFFFF",
+  texto: "#0F172A", // ardósia 900
+  textoSecundario: "#475569", // ardósia 600
+  textoApagado: "#94A3B8", // ardósia 400
+  borda: "#E2E8F0", // ardósia 200
+  fundoAlternado: "#F8FAFC", // ardósia 50
+  alerta: "#92400E", // âmbar 800
+  alertaClaro: "#FEF3C7",
+  positivo: "#047857", // esmeralda 700
+  nomeDestaquePendente: "em amarelo",
+};
+
+export const PALETA_PRETO_E_BRANCO: PaletaExportacao = {
+  destaque: "#000000",
+  destaqueClaro: "#E0E0E0",
+  textoSobreDestaque: "#FFFFFF",
+  texto: "#000000",
+  textoSecundario: "#262626",
+  textoApagado: "#4D4D4D",
+  borda: "#808080", // bordas visíveis mesmo em impressão clara
+  fundoAlternado: "#F2F2F2",
+  alerta: "#000000",
+  alertaClaro: "#C4C4C4", // bem mais escuro que a zebra, para destacar os pendentes
+  positivo: "#000000",
+  nomeDestaquePendente: "em cinza",
+};
+
+export type TemaExportacao = "cor" | "pb";
+
+export function paletaDoTema(tema: TemaExportacao): PaletaExportacao {
+  return tema === "pb" ? PALETA_PRETO_E_BRANCO : PALETA_COLORIDA;
+}
 
 /** Paths SVG (viewBox 24x24, traço 2, pontas arredondadas) do ícone da logo. */
 export const LOGO_PATHS: readonly string[] = [

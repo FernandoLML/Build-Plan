@@ -72,7 +72,7 @@ export function GerarListaDialog({ open, onOpenChange, obraId }: Readonly<GerarL
         </DialogHeader>
 
         <div className="space-y-4">
-          {erro && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>}
+          {erro && <p className="rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-400">{erro}</p>}
 
           <div className="space-y-1">
             <Label>Etapa</Label>

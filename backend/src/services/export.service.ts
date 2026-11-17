@@ -12,6 +12,7 @@ import {
 } from "./export/lista-compras.dados.js";
 import { gerarXlsxListaCompras } from "./export/lista-compras.xlsx.js";
 import { gerarPdfListaCompras } from "./export/lista-compras.pdf.js";
+import { paletaDoTema, type TemaExportacao } from "./export/marca.js";
 
 export interface ArquivoExportado {
   nomeArquivo: string;
@@ -79,21 +80,32 @@ export class ExportService {
     return montarCsv(lista.itens);
   }
 
-  /** Gera a planilha .xlsx estilizada da lista de compras (404 se não for do usuário). */
-  public async exportarListaComprasXlsx(listaId: string, usuarioId: string): Promise<ArquivoExportado> {
+  /**
+   * Gera a planilha .xlsx estilizada da lista de compras (404 se não for do
+   * usuário). `tema: "pb"` usa a paleta preto e branco, para impressão.
+   */
+  public async exportarListaComprasXlsx(
+    listaId: string,
+    usuarioId: string,
+    tema: TemaExportacao = "cor",
+  ): Promise<ArquivoExportado> {
     const dados = await this.carregarDadosExportacao(listaId, usuarioId);
     return {
-      nomeArquivo: nomeArquivoExportacao(dados.etapaNome, "xlsx"),
-      conteudo: await gerarXlsxListaCompras(dados),
+      nomeArquivo: nomeArquivoExportacao(dados.etapaNome, "xlsx", tema),
+      conteudo: await gerarXlsxListaCompras(dados, paletaDoTema(tema)),
     };
   }
 
-  /** Gera o PDF da lista de compras (404 se não for do usuário). */
-  public async exportarListaComprasPdf(listaId: string, usuarioId: string): Promise<ArquivoExportado> {
+  /** Gera o PDF da lista de compras (404 se não for do usuário), colorido ou P&B. */
+  public async exportarListaComprasPdf(
+    listaId: string,
+    usuarioId: string,
+    tema: TemaExportacao = "cor",
+  ): Promise<ArquivoExportado> {
     const dados = await this.carregarDadosExportacao(listaId, usuarioId);
     return {
-      nomeArquivo: nomeArquivoExportacao(dados.etapaNome, "pdf"),
-      conteudo: await gerarPdfListaCompras(dados),
+      nomeArquivo: nomeArquivoExportacao(dados.etapaNome, "pdf", tema),
+      conteudo: await gerarPdfListaCompras(dados, paletaDoTema(tema)),
     };
   }
 

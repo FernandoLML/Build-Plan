@@ -34,6 +34,7 @@ import { VincularEtapaDialog } from "@/components/materiais/VincularEtapaDialog"
 import { MaterialDetailPanel } from "@/components/materiais/MaterialDetailPanel";
 import type { VinculoResumo } from "@/components/materiais/MaterialDetailPanel";
 import type { Material } from "@/types/material";
+import { calcularSaldoMaterial } from "@/lib/suprimentos";
 
 const TH = "text-xs font-semibold uppercase tracking-wider text-slate-400";
 
@@ -243,6 +244,7 @@ export function MateriaisPage() {
               material={selecionado}
               vinculos={vinculosSelecionado}
               carregandoVinculos={carregandoVinculos}
+              saldo={selecionado ? calcularSaldoMaterial(selecionado, vinculos) : null}
               onVincular={setVinculando}
               onEditar={(m) => {
                 setMaterialForm(m);
@@ -265,6 +267,7 @@ export function MateriaisPage() {
         onOpenChange={(o) => !o && setVinculando(null)}
         material={vinculando}
         obraId={obraAtivaId}
+        saldo={vinculando && !carregandoVinculos ? calcularSaldoMaterial(vinculando, vinculos) : null}
       />
     </div>
   );

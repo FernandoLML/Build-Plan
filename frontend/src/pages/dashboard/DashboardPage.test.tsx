@@ -4,6 +4,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import { renderComProviders } from "@/test/utils";
 import { DashboardPage } from "./DashboardPage";
@@ -77,7 +78,8 @@ function dashboard(): DashboardObra {
   };
 }
 
-// Fundação: 1/1 aplicado (100%). Alvenaria: 1 de 3 aplicados (33%) → "em execução".
+// Fundação: 1/1 aplicado (100%). Alvenaria: 1 de 3 aplicados (33%) → "em execução"
+// (primeira etapa, pela ordem, com material ainda não aplicado).
 const VINCULOS: Record<string, VinculoMaterialEtapa[]> = {
   "etapa-fund": [vinculo("v1", "etapa-fund", "Concreto", "APLICADO")],
   "etapa-alv": [
@@ -116,7 +118,7 @@ describe("DashboardPage", () => {
     expect(fundacao.compareDocumentPosition(alvenaria) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("lista os materiais da etapa em execução (primeira com progresso parcial)", async () => {
+  it("lista os materiais da etapa em execução (primeira com material não aplicado)", async () => {
     renderComProviders(<DashboardPage />);
 
     expect(await screen.findByText("Tijolo")).toBeInTheDocument();
@@ -124,6 +126,39 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Graute")).toBeInTheDocument();
     expect(screen.queryByText("Concreto")).not.toBeInTheDocument(); // etapa 100%
     expect(screen.getByText("· Alvenaria")).toBeInTheDocument();
+  });
+
+  it("passa para a etapa seguinte quando a anterior está toda aplicada, mesmo sem progresso nela", async () => {
+    vi.mocked(vinculosApi.listarPorEtapa).mockImplementation(async (id: string) =>
+      id === "etapa-fund"
+        ? [vinculo("v1", "etapa-fund", "Concreto", "APLICADO")]
+        : [vinculo("v2", "etapa-alv", "Tijolo", "PREVISTO"), vinculo("v3", "etapa-alv", "Argamassa", "PREVISTO")],
+    );
+    renderComProviders(<DashboardPage />);
+
+    expect(await screen.findByText("Tijolo")).toBeInTheDocument();
+    expect(screen.getByText("· Alvenaria")).toBeInTheDocument();
+    expect(screen.getByText("em execução")).toBeInTheDocument();
+    expect(screen.queryByText("Concreto")).not.toBeInTheDocument();
+  });
+
+  it("permite escolher outra etapa e voltar para a automática", async () => {
+    const user = userEvent.setup();
+    renderComProviders(<DashboardPage />);
+    await screen.findByText("Tijolo");
+
+    await user.click(screen.getByRole("combobox", { name: "Etapa exibida" }));
+    await user.click(await screen.findByRole("option", { name: "Fundação" }));
+
+    expect(await screen.findByText("Concreto")).toBeInTheDocument();
+    expect(screen.queryByText("Tijolo")).not.toBeInTheDocument();
+    expect(screen.queryByText("em execução")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("combobox", { name: "Etapa exibida" }));
+    await user.click(await screen.findByRole("option", { name: "Etapa em execução (automática)" }));
+
+    expect(await screen.findByText("Tijolo")).toBeInTheDocument();
+    expect(screen.getByText("em execução")).toBeInTheDocument();
   });
 
   it("mostra skeleton (e não 0%) enquanto os vínculos carregam", async () => {

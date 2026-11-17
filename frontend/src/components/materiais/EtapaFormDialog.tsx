@@ -79,18 +79,18 @@ export function EtapaFormDialog({ open, onOpenChange, obraId, onCriada }: Readon
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {erro && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>}
+          {erro && <p className="rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-400">{erro}</p>}
 
           <div className="space-y-1">
             <Label htmlFor="etapa-nome">Nome</Label>
             <Input id="etapa-nome" placeholder="Ex.: Fundação" {...register("nome")} />
-            {errors.nome && <p className="text-xs text-red-600">{errors.nome.message}</p>}
+            {errors.nome && <p className="text-xs text-red-400">{errors.nome.message}</p>}
           </div>
 
           <div className="space-y-1">
             <Label htmlFor="etapa-ordem">Ordem (opcional)</Label>
             <Input id="etapa-ordem" type="number" {...register("ordem")} />
-            {errors.ordem && <p className="text-xs text-red-600">{errors.ordem.message}</p>}
+            {errors.ordem && <p className="text-xs text-red-400">{errors.ordem.message}</p>}
           </div>
 
           <DialogFooter>

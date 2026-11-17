@@ -40,3 +40,8 @@ export function formatarMoeda(valor: string | number | null | undefined): string
   const numero = typeof valor === "string" ? Number(valor) : valor;
   return Number.isNaN(numero) ? "—" : currencyFormatter.format(numero);
 }
+
+/** Quantidade no formato brasileiro, sem zeros à direita ("2,5" em vez de "2.500"). */
+export function formatarQuantidade(valor: number): string {
+  return valor.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+}

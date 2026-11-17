@@ -309,7 +309,7 @@ describe("Orçamento automático (SINAPI)", () => {
       { nome: "Prego", codigo: null, qtd: 1 },
     ];
     for (const m of materiais) {
-      const id = await criarMaterial(usuario.token, obraId, { nome: m.nome });
+      const id = await criarMaterial(usuario.token, obraId, { nome: m.nome, quantidade: m.qtd });
       await prisma.material.update({ where: { id }, data: { codigoSinapi: m.codigo } });
       await vincular(usuario.token, etapaId, id, m.qtd);
     }

@@ -2,7 +2,7 @@
 // Regras puras do Dashboard: progresso de suprimentos por etapa e etapa em execução.
 
 import { describe, it, expect } from "vitest";
-import { calcularProgressoSuprimentos, encontrarEtapaEmExecucao } from "./suprimentos";
+import { calcularProgressoSuprimentos, calcularSaldoMaterial, encontrarEtapaEmExecucao } from "./suprimentos";
 import type { StatusVinculo } from "@/types/material";
 
 const v = (etapaId: string, status: StatusVinculo) => ({ etapaId, status });
@@ -46,11 +46,57 @@ describe("encontrarEtapaEmExecucao", () => {
     expect(encontrarEtapaEmExecucao(etapas, vinculos)?.id).toBe("e2");
   });
 
-  it("cai na primeira etapa pela ordem quando nenhuma está parcial", () => {
-    expect(encontrarEtapaEmExecucao(etapas, [v("e2", "PREVISTO")])?.id).toBe("e1");
+  it("avança para a próxima etapa quando a anterior foi toda aplicada, mesmo sem progresso nela", () => {
+    const vinculos = [v("e1", "APLICADO"), v("e1", "APLICADO"), v("e2", "PREVISTO"), v("e2", "PREVISTO")];
+    expect(encontrarEtapaEmExecucao(etapas, vinculos)?.id).toBe("e2");
+  });
+
+  it("começa pela primeira etapa com pendência, mesmo com nada recebido ainda", () => {
+    const vinculos = [v("e1", "PREVISTO"), v("e2", "PREVISTO")];
+    expect(encontrarEtapaEmExecucao(etapas, vinculos)?.id).toBe("e1");
+  });
+
+  it("ignora etapas sem materiais vinculados", () => {
+    expect(encontrarEtapaEmExecucao(etapas, [v("e2", "PREVISTO")])?.id).toBe("e2");
+  });
+
+  it("com tudo aplicado, mostra a última etapa com vínculos", () => {
+    const vinculos = [v("e1", "APLICADO"), v("e2", "APLICADO")];
+    expect(encontrarEtapaEmExecucao(etapas, vinculos)?.id).toBe("e2");
+  });
+
+  it("sem nenhum vínculo, mostra a primeira etapa pela ordem", () => {
+    expect(encontrarEtapaEmExecucao(etapas, [])?.id).toBe("e1");
   });
 
   it("retorna null sem etapas", () => {
     expect(encontrarEtapaEmExecucao([], [])).toBeNull();
+  });
+});
+
+describe("calcularSaldoMaterial", () => {
+  const material = { id: "m1", quantidade: "10.000" };
+
+  it("desconta o que já está vinculado, somando todas as etapas", () => {
+    const vinculos = [
+      { materialId: "m1", quantidade: "2.500" },
+      { materialId: "m1", quantidade: "4.000" },
+      { materialId: "m2", quantidade: "99.000" },
+    ];
+    expect(calcularSaldoMaterial(material, vinculos)).toEqual({ total: 10, vinculado: 6.5, disponivel: 3.5 });
+  });
+
+  it("soma frações sem erro de ponto flutuante", () => {
+    const vinculos = [0.1, 0.2, 0.3].map((q) => ({ materialId: "m1", quantidade: q }));
+    expect(calcularSaldoMaterial({ id: "m1", quantidade: 0.6 }, vinculos)).toEqual({
+      total: 0.6,
+      vinculado: 0.6,
+      disponivel: 0,
+    });
+  });
+
+  it("nunca devolve saldo negativo", () => {
+    const vinculos = [{ materialId: "m1", quantidade: "12" }];
+    expect(calcularSaldoMaterial(material, vinculos).disponivel).toBe(0);
   });
 });

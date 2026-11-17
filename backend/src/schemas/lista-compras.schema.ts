@@ -22,4 +22,9 @@ export const listaIdParamSchema = z.object({
   id: z.string().uuid("Identificador de lista inválido."),
 });
 
+// Query das exportações .xlsx e .pdf: ?tema=pb gera a versão preto e branco.
+export const exportacaoQuerySchema = z.object({
+  tema: z.enum(["cor", "pb"], { message: 'O tema deve ser "cor" ou "pb".' }).default("cor"),
+});
+
 export type GerarListaInput = z.infer<typeof gerarListaSchema>;

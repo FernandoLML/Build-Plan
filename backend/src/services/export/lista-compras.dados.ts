@@ -90,8 +90,14 @@ export function slugificar(texto: string): string {
 }
 
 /** Nome do arquivo baixado: lista-compras-<etapa>.<extensao>. */
-export function nomeArquivoExportacao(etapaNome: string, extensao: "xlsx" | "pdf"): string {
-  return `lista-compras-${slugificar(etapaNome)}.${extensao}`;
+/** Ex.: lista-compras-fundacao.pdf; a versão preto e branco ganha o sufixo "-pb". */
+export function nomeArquivoExportacao(
+  etapaNome: string,
+  extensao: "xlsx" | "pdf",
+  tema: "cor" | "pb" = "cor",
+): string {
+  const sufixo = tema === "pb" ? "-pb" : "";
+  return `lista-compras-${slugificar(etapaNome)}${sufixo}.${extensao}`;
 }
 
 const FORMATO_DATA = new Intl.DateTimeFormat("pt-BR", {

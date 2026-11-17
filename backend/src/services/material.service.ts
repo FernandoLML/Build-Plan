@@ -6,6 +6,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../errors/app-error.js";
 import type { CreateMaterialInput, UpdateMaterialInput } from "../schemas/material.schema.js";
+import { travarMaterial, somarVinculado, formatarQuantidade } from "./material-saldo.js";
 
 export class MaterialService {
   /** Garante que a obra existe e pertence ao usuário. Lança 404 caso contrário. */
@@ -63,21 +64,40 @@ export class MaterialService {
     return this.buscarMaterialDoUsuario(materialId, usuarioId);
   }
 
-  /** Atualiza um material (validando ownership). */
+  /**
+   * Atualiza um material (validando ownership). A quantidade não pode ficar
+   * abaixo do que já está vinculado às etapas (400): o vínculo ficaria maior
+   * que o material.
+   */
   public async atualizar(materialId: string, usuarioId: string, data: UpdateMaterialInput) {
-    await this.buscarMaterialDoUsuario(materialId, usuarioId);
+    const material = await this.buscarMaterialDoUsuario(materialId, usuarioId);
+    const quantidade = data.quantidade === undefined ? undefined : new Prisma.Decimal(data.quantidade);
 
-    return prisma.material.update({
-      where: { id: materialId },
-      data: {
-        nome: data.nome,
-        especificacao: data.especificacao,
-        unidade: data.unidade,
-        quantidade:
-          data.quantidade !== undefined ? new Prisma.Decimal(data.quantidade) : undefined,
-        origem: data.origem,
-        codigoSinapi: data.codigoSinapi,
-      },
+    return prisma.$transaction(async (tx) => {
+      if (quantidade !== undefined) {
+        await travarMaterial(tx, materialId);
+        const vinculado = await somarVinculado(tx, materialId);
+        if (quantidade.lt(vinculado)) {
+          const un = data.unidade ?? material.unidade;
+          throw new AppError(
+            `A quantidade não pode ser menor que o total já vinculado às etapas ` +
+              `(${formatarQuantidade(vinculado)} ${un}). Remova ou reduza vínculos antes.`,
+            400,
+          );
+        }
+      }
+
+      return tx.material.update({
+        where: { id: materialId },
+        data: {
+          nome: data.nome,
+          especificacao: data.especificacao,
+          unidade: data.unidade,
+          quantidade,
+          origem: data.origem,
+          codigoSinapi: data.codigoSinapi,
+        },
+      });
     });
   }
 

@@ -1,6 +1,7 @@
 // Caminho: /frontend/src/pages/dashboard/DashboardPage.tsx
 // Tela 2 — Dashboard Operacional (RFC 4.2 / Fig. 11). Obsidian Precision.
 
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertTriangle,
@@ -14,6 +15,13 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useObraAtiva } from "@/contexts/useObraAtiva";
 import { useDashboard } from "@/hooks/useDashboard";
 import { useEtapas, useVinculosDaObra } from "@/hooks/useMateriais";
@@ -25,6 +33,9 @@ import { StatusBadge } from "@/components/rastreabilidade/StatusBadge";
 import type { DashboardObra } from "@/types/dashboard";
 import type { EtapaComProgresso } from "@/types/etapa";
 import type { VinculoMaterialEtapa } from "@/types/material";
+
+/** Valor do seletor que segue a etapa em execução calculada automaticamente. */
+const ETAPA_AUTOMATICA = "automatica";
 
 interface Alerta {
   cor: string;
@@ -148,6 +159,9 @@ export function DashboardPage() {
   // Enquanto etapas/vínculos carregam, o progresso seria exibido como 0% (dado
   // errado) — mostra skeleton até ter os dados.
   const carregandoSuprimentos = carregandoEtapas || carregandoVinculos;
+  // Etapa escolhida no card "Materiais por etapa"; o padrão acompanha a etapa
+  // em execução, que muda sozinha conforme os materiais são aplicados.
+  const [etapaEscolhida, setEtapaEscolhida] = useState(ETAPA_AUTOMATICA);
 
   if (!obraAtivaId) {
     return (
@@ -165,8 +179,10 @@ export function DashboardPage() {
   const etapasOrdenadas = [...(etapas ?? [])].sort((a, b) => a.ordem - b.ordem);
 
   const etapaExecucao = encontrarEtapaEmExecucao(etapasOrdenadas, vinculos);
-  const vinculosExecucao = etapaExecucao
-    ? vinculos.filter((v) => v.etapaId === etapaExecucao.id)
+  // Se a etapa escolhida for excluída, volta para a automática.
+  const etapaExibida = etapasOrdenadas.find((e) => e.id === etapaEscolhida) ?? etapaExecucao;
+  const vinculosExibidos = etapaExibida
+    ? vinculos.filter((v) => v.etapaId === etapaExibida.id)
     : [];
 
   const alertas = montarAlertas(data);
@@ -302,26 +318,48 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {/* 3) Materiais da etapa em execução */}
+      {/* 3) Materiais por etapa (padrão: a etapa em execução) */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base text-slate-100">
-              Materiais da etapa em execução
-              {etapaExecucao && <span className="ml-2 text-sm text-slate-500">· {etapaExecucao.nome}</span>}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="flex flex-wrap items-center gap-2 text-base text-slate-100">
+              Materiais por etapa
+              {etapaExibida && <span className="text-sm text-slate-500">· {etapaExibida.nome}</span>}
+              {etapaExibida && etapaExibida.id === etapaExecucao?.id && (
+                <span className="rounded-full bg-indigo-500/10 px-2 py-0.5 text-xs font-medium text-indigo-300">
+                  em execução
+                </span>
+              )}
             </CardTitle>
-            <Button asChild variant="ghost" size="sm" className="text-slate-400 hover:text-slate-100">
-              <Link to="/rastreabilidade">
-                Abrir rastreabilidade <ExternalLink className="ml-1 h-3.5 w-3.5" />
-              </Link>
-            </Button>
+            <div className="flex items-center gap-2">
+              {etapasOrdenadas.length > 0 && (
+                <Select value={etapaEscolhida} onValueChange={setEtapaEscolhida}>
+                  <SelectTrigger className="w-56" aria-label="Etapa exibida">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ETAPA_AUTOMATICA}>Etapa em execução (automática)</SelectItem>
+                    {etapasOrdenadas.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <Button asChild variant="ghost" size="sm" className="text-slate-400 hover:text-slate-100">
+                <Link to="/rastreabilidade">
+                  Abrir rastreabilidade <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
           <MateriaisEtapaExecucao
             carregando={carregandoSuprimentos}
-            etapa={etapaExecucao}
-            vinculos={vinculosExecucao}
+            etapa={etapaExibida}
+            vinculos={vinculosExibidos}
           />
         </CardContent>
       </Card>

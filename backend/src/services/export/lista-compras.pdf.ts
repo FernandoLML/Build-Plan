@@ -5,7 +5,7 @@
 // de Total Orçado e rodapé "Página X de Y".
 
 import PDFDocument from "pdfkit";
-import { CORES, LOGO_PATHS } from "./marca.js";
+import { LOGO_PATHS, PALETA_COLORIDA, type PaletaExportacao } from "./marca.js";
 import {
   formatarDataHora,
   formatarMoeda,
@@ -48,54 +48,54 @@ const COLUNAS_PDF: readonly ColunaPdf[] = [
   { titulo: "Origem", largura: 55, alinhamento: "center" },
 ];
 
-const COR_ORIGEM: Record<ItemExportacao["origemPreco"], string> = {
-  SINAPI: CORES.indigo,
-  MANUAL: CORES.ardosia600,
-  PENDENTE: CORES.ambar800,
-};
+function corOrigem(c: PaletaExportacao, origem: ItemExportacao["origemPreco"]): string {
+  if (origem === "SINAPI") return c.destaque;
+  if (origem === "PENDENTE") return c.alerta;
+  return c.textoSecundario;
+}
 
-/** Logo: ícone "Boxes" em branco sobre quadrado índigo arredondado. */
-function desenharLogo(doc: Doc, x: number, y: number, tamanho: number): void {
-  doc.roundedRect(x, y, tamanho, tamanho, tamanho * 0.22).fill(CORES.indigo);
+/** Logo: ícone "Boxes" em branco sobre quadrado arredondado (índigo ou preto). */
+function desenharLogo(doc: Doc, c: PaletaExportacao, x: number, y: number, tamanho: number): void {
+  doc.roundedRect(x, y, tamanho, tamanho, tamanho * 0.22).fill(c.destaque);
 
   const margemIcone = tamanho * 0.18;
   const escala = (tamanho - margemIcone * 2) / 24;
   doc.save();
   doc.translate(x + margemIcone, y + margemIcone).scale(escala);
-  doc.lineWidth(2).lineCap("round").lineJoin("round").strokeColor("#FFFFFF");
+  doc.lineWidth(2).lineCap("round").lineJoin("round").strokeColor(c.textoSobreDestaque);
   for (const d of LOGO_PATHS) {
     doc.path(d).stroke();
   }
   doc.restore();
 }
 
-function desenharCabecalho(doc: Doc, dados: ListaComprasExportacao): number {
+function desenharCabecalho(doc: Doc, c: PaletaExportacao, dados: ListaComprasExportacao): number {
   const topo = MARGEM;
-  desenharLogo(doc, MARGEM, topo, 34);
+  desenharLogo(doc, c, MARGEM, topo, 34);
 
-  doc.font(FONTE_NEGRITO).fontSize(16).fillColor(CORES.ardosia900).text("Build-Plan", MARGEM + 44, topo + 3);
-  doc.font(FONTE).fontSize(9).fillColor(CORES.ardosia600).text("Planejamento de suprimentos", MARGEM + 44, topo + 22);
+  doc.font(FONTE_NEGRITO).fontSize(16).fillColor(c.texto).text("Build-Plan", MARGEM + 44, topo + 3);
+  doc.font(FONTE).fontSize(9).fillColor(c.textoSecundario).text("Planejamento de suprimentos", MARGEM + 44, topo + 22);
 
   doc
     .font(FONTE_NEGRITO)
     .fontSize(14)
-    .fillColor(CORES.indigo)
+    .fillColor(c.destaque)
     .text("LISTA DE COMPRAS", MARGEM, topo + 3, { width: LARGURA_UTIL, align: "right" });
   doc
     .font(FONTE)
     .fontSize(9)
-    .fillColor(CORES.ardosia600)
+    .fillColor(c.textoSecundario)
     .text(`Emitida em ${formatarDataHora(dados.emitidaEm)}`, MARGEM, topo + 22, {
       width: LARGURA_UTIL,
       align: "right",
     });
 
   const linha = topo + 46;
-  doc.moveTo(MARGEM, linha).lineTo(MARGEM + LARGURA_UTIL, linha).lineWidth(1.5).strokeColor(CORES.indigo).stroke();
+  doc.moveTo(MARGEM, linha).lineTo(MARGEM + LARGURA_UTIL, linha).lineWidth(1.5).strokeColor(c.destaque).stroke();
   return linha + 14;
 }
 
-function desenharInformacoes(doc: Doc, dados: ListaComprasExportacao, y: number): number {
+function desenharInformacoes(doc: Doc, c: PaletaExportacao, dados: ListaComprasExportacao, y: number): number {
   const campos: [string, string][] = [
     ["Obra", dados.obraNome],
     ["Etapa", dados.etapaNome],
@@ -103,19 +103,19 @@ function desenharInformacoes(doc: Doc, dados: ListaComprasExportacao, y: number)
   ];
   let atual = y;
   for (const [rotulo, valor] of campos) {
-    doc.font(FONTE_NEGRITO).fontSize(9.5).fillColor(CORES.ardosia600).text(`${rotulo}:`, MARGEM, atual, { continued: true });
-    doc.font(FONTE).fillColor(CORES.ardosia900).text(` ${valor}`, { width: LARGURA_UTIL });
+    doc.font(FONTE_NEGRITO).fontSize(9.5).fillColor(c.textoSecundario).text(`${rotulo}:`, MARGEM, atual, { continued: true });
+    doc.font(FONTE).fillColor(c.texto).text(` ${valor}`, { width: LARGURA_UTIL });
     atual = doc.y + 3;
   }
   return atual + 8;
 }
 
-function desenharResumo(doc: Doc, dados: ListaComprasExportacao, y: number): number {
+function desenharResumo(doc: Doc, c: PaletaExportacao, dados: ListaComprasExportacao, y: number): number {
   const pendentes = dados.itens.filter((i) => i.origemPreco === "PENDENTE").length;
   const cartoes: { rotulo: string; valor: string; cor: string }[] = [
-    { rotulo: "TOTAL DE ITENS", valor: String(dados.itens.length), cor: CORES.ardosia900 },
-    { rotulo: "SEM PREÇO", valor: String(pendentes), cor: pendentes > 0 ? CORES.ambar800 : CORES.ardosia900 },
-    { rotulo: "TOTAL ORÇADO", valor: formatarMoeda(totalOrcado(dados.itens)), cor: CORES.esmeralda700 },
+    { rotulo: "TOTAL DE ITENS", valor: String(dados.itens.length), cor: c.texto },
+    { rotulo: "SEM PREÇO", valor: String(pendentes), cor: pendentes > 0 ? c.alerta : c.texto },
+    { rotulo: "TOTAL ORÇADO", valor: formatarMoeda(totalOrcado(dados.itens)), cor: c.positivo },
   ];
   const espaco = 10;
   const largura = (LARGURA_UTIL - espaco * (cartoes.length - 1)) / cartoes.length;
@@ -123,18 +123,18 @@ function desenharResumo(doc: Doc, dados: ListaComprasExportacao, y: number): num
 
   cartoes.forEach((cartao, idx) => {
     const x = MARGEM + idx * (largura + espaco);
-    doc.roundedRect(x, y, largura, altura, 6).fillAndStroke(CORES.ardosia50, CORES.ardosia200);
-    doc.font(FONTE_NEGRITO).fontSize(7.5).fillColor(CORES.ardosia600).text(cartao.rotulo, x + 10, y + 9, { width: largura - 20 });
+    doc.roundedRect(x, y, largura, altura, 6).fillAndStroke(c.fundoAlternado, c.borda);
+    doc.font(FONTE_NEGRITO).fontSize(7.5).fillColor(c.textoSecundario).text(cartao.rotulo, x + 10, y + 9, { width: largura - 20 });
     doc.font(FONTE_NEGRITO).fontSize(14).fillColor(cartao.cor).text(cartao.valor, x + 10, y + 21, { width: largura - 20 });
   });
   return y + altura + 16;
 }
 
-function desenharCabecalhoTabela(doc: Doc, y: number): number {
+function desenharCabecalhoTabela(doc: Doc, c: PaletaExportacao, y: number): number {
   const altura = 22;
-  doc.rect(MARGEM, y, LARGURA_UTIL, altura).fill(CORES.indigoClaro);
+  doc.rect(MARGEM, y, LARGURA_UTIL, altura).fill(c.destaqueClaro);
   let x = MARGEM;
-  doc.font(FONTE_NEGRITO).fontSize(8).fillColor(CORES.ardosia900);
+  doc.font(FONTE_NEGRITO).fontSize(8).fillColor(c.texto);
   for (const coluna of COLUNAS_PDF) {
     doc.text(coluna.titulo, x + PADDING_CELULA, y + 7, {
       width: coluna.largura - PADDING_CELULA * 2,
@@ -165,11 +165,18 @@ function alturaDaLinha(doc: Doc, item: ItemExportacao): number {
   return Math.max(ALTURA_MIN_LINHA, descricao + PADDING_CELULA * 2 + 2);
 }
 
-function desenharLinha(doc: Doc, item: ItemExportacao, y: number, altura: number, zebra: boolean): void {
+function desenharLinha(
+  doc: Doc,
+  c: PaletaExportacao,
+  item: ItemExportacao,
+  y: number,
+  altura: number,
+  zebra: boolean,
+): void {
   if (item.origemPreco === "PENDENTE") {
-    doc.rect(MARGEM, y, LARGURA_UTIL, altura).fill(CORES.ambarClaro);
+    doc.rect(MARGEM, y, LARGURA_UTIL, altura).fill(c.alertaClaro);
   } else if (zebra) {
-    doc.rect(MARGEM, y, LARGURA_UTIL, altura).fill(CORES.ardosia50);
+    doc.rect(MARGEM, y, LARGURA_UTIL, altura).fill(c.fundoAlternado);
   }
 
   const textos = textosDaLinha(item);
@@ -177,9 +184,9 @@ function desenharLinha(doc: Doc, item: ItemExportacao, y: number, altura: number
   COLUNAS_PDF.forEach((coluna, idx) => {
     const ehOrigem = idx === COLUNAS_PDF.length - 1;
     const ehSubtotal = idx === 5;
-    let cor: string = CORES.ardosia900;
-    if (ehOrigem) cor = COR_ORIGEM[item.origemPreco];
-    else if (textos[idx] === "—") cor = CORES.ardosia400;
+    let cor: string = c.texto;
+    if (ehOrigem) cor = corOrigem(c, item.origemPreco);
+    else if (textos[idx] === "—") cor = c.textoApagado;
 
     doc
       .font(ehOrigem || ehSubtotal ? FONTE_NEGRITO : FONTE)
@@ -197,22 +204,22 @@ function desenharLinha(doc: Doc, item: ItemExportacao, y: number, altura: number
     .moveTo(MARGEM, y + altura)
     .lineTo(MARGEM + LARGURA_UTIL, y + altura)
     .lineWidth(0.5)
-    .strokeColor(CORES.ardosia200)
+    .strokeColor(c.borda)
     .stroke();
 }
 
-function desenharTotal(doc: Doc, dados: ListaComprasExportacao, y: number): number {
+function desenharTotal(doc: Doc, c: PaletaExportacao, dados: ListaComprasExportacao, y: number): number {
   const altura = 26;
   const pendentes = dados.itens.filter((i) => i.origemPreco === "PENDENTE").length;
-  doc.rect(MARGEM, y, LARGURA_UTIL, altura).fill(CORES.indigoClaro);
-  doc.moveTo(MARGEM, y).lineTo(MARGEM + LARGURA_UTIL, y).lineWidth(1.5).strokeColor(CORES.indigo).stroke();
+  doc.rect(MARGEM, y, LARGURA_UTIL, altura).fill(c.destaqueClaro);
+  doc.moveTo(MARGEM, y).lineTo(MARGEM + LARGURA_UTIL, y).lineWidth(1.5).strokeColor(c.destaque).stroke();
 
   // Rótulo nas 4 primeiras colunas; valor ocupa Preço Unitário + Subtotal.
   const larguraRotulo = COLUNAS_PDF.slice(0, 4).reduce((acc, c) => acc + c.largura, 0);
   const larguraValor = COLUNAS_PDF[4].largura + COLUNAS_PDF[5].largura;
   const colunaObs = COLUNAS_PDF[6];
 
-  doc.font(FONTE_NEGRITO).fontSize(10.5).fillColor(CORES.indigo);
+  doc.font(FONTE_NEGRITO).fontSize(10.5).fillColor(c.destaque);
   doc.text("Total Orçado", MARGEM, y + 8, { width: larguraRotulo - PADDING_CELULA, align: "right" });
   doc.text(formatarMoeda(totalOrcado(dados.itens)), MARGEM + larguraRotulo, y + 8, {
     width: larguraValor - PADDING_CELULA,
@@ -223,7 +230,7 @@ function desenharTotal(doc: Doc, dados: ListaComprasExportacao, y: number): numb
     doc
       .font(FONTE_NEGRITO)
       .fontSize(7.5)
-      .fillColor(CORES.ambar800)
+      .fillColor(c.alerta)
       .text(`${pendentes} sem preço`, MARGEM + larguraRotulo + larguraValor, y + 10, {
         width: colunaObs.largura,
         align: "center",
@@ -233,14 +240,14 @@ function desenharTotal(doc: Doc, dados: ListaComprasExportacao, y: number): numb
   return y + altura + 12;
 }
 
-function desenharTabela(doc: Doc, dados: ListaComprasExportacao, inicio: number): number {
-  let y = desenharCabecalhoTabela(doc, inicio);
+function desenharTabela(doc: Doc, c: PaletaExportacao, dados: ListaComprasExportacao, inicio: number): number {
+  let y = desenharCabecalhoTabela(doc, c, inicio);
 
   if (dados.itens.length === 0) {
     doc
       .font(FONTE)
       .fontSize(9)
-      .fillColor(CORES.ardosia600)
+      .fillColor(c.textoSecundario)
       .text("Nenhum item nesta lista.", MARGEM, y + 8, { width: LARGURA_UTIL, align: "center" });
     y += 28;
   }
@@ -249,9 +256,9 @@ function desenharTabela(doc: Doc, dados: ListaComprasExportacao, inicio: number)
     const altura = alturaDaLinha(doc, item);
     if (y + altura > LIMITE_INFERIOR) {
       doc.addPage();
-      y = desenharCabecalhoTabela(doc, MARGEM);
+      y = desenharCabecalhoTabela(doc, c, MARGEM);
     }
-    desenharLinha(doc, item, y, altura, idx % 2 === 1);
+    desenharLinha(doc, c, item, y, altura, idx % 2 === 1);
     y += altura;
   });
 
@@ -259,21 +266,21 @@ function desenharTabela(doc: Doc, dados: ListaComprasExportacao, inicio: number)
     doc.addPage();
     y = MARGEM;
   }
-  return desenharTotal(doc, dados, y);
+  return desenharTotal(doc, c, dados, y);
 }
 
-function desenharLegenda(doc: Doc, dados: ListaComprasExportacao, y: number): void {
+function desenharLegenda(doc: Doc, c: PaletaExportacao, dados: ListaComprasExportacao, y: number): void {
   if (!dados.itens.some((i) => i.origemPreco === "PENDENTE")) return;
   let topo = y;
   if (topo + 24 > LIMITE_INFERIOR) {
     doc.addPage();
     topo = MARGEM;
   }
-  doc.rect(MARGEM, topo + 2, 9, 9).fill(CORES.ambarClaro);
+  doc.rect(MARGEM, topo + 2, 9, 9).fill(c.alertaClaro);
   doc
     .font(FONTE)
     .fontSize(8)
-    .fillColor(CORES.ardosia600)
+    .fillColor(c.textoSecundario)
     .text(
       "Itens destacados estão sem preço definido (PENDENTE) e não entram no Total Orçado. Informe a cotação no Build-Plan para completar o orçamento.",
       MARGEM + 14,
@@ -282,7 +289,7 @@ function desenharLegenda(doc: Doc, dados: ListaComprasExportacao, y: number): vo
     );
 }
 
-function desenharRodapes(doc: Doc, dados: ListaComprasExportacao): void {
+function desenharRodapes(doc: Doc, c: PaletaExportacao, dados: ListaComprasExportacao): void {
   const { start, count } = doc.bufferedPageRange();
   for (let i = start; i < start + count; i++) {
     doc.switchToPage(i);
@@ -290,11 +297,11 @@ function desenharRodapes(doc: Doc, dados: ListaComprasExportacao): void {
     const margemOriginal = doc.page.margins.bottom;
     doc.page.margins.bottom = 0;
     const y = ALTURA_PAGINA - MARGEM - 10;
-    doc.moveTo(MARGEM, y - 6).lineTo(MARGEM + LARGURA_UTIL, y - 6).lineWidth(0.5).strokeColor(CORES.ardosia200).stroke();
+    doc.moveTo(MARGEM, y - 6).lineTo(MARGEM + LARGURA_UTIL, y - 6).lineWidth(0.5).strokeColor(c.borda).stroke();
     doc
       .font(FONTE)
       .fontSize(7.5)
-      .fillColor(CORES.ardosia400)
+      .fillColor(c.textoApagado)
       .text(`Build-Plan · ${dados.obraNome} · ${dados.etapaNome}`, MARGEM, y, {
         width: LARGURA_UTIL * 0.75,
         lineBreak: false,
@@ -304,8 +311,11 @@ function desenharRodapes(doc: Doc, dados: ListaComprasExportacao): void {
   }
 }
 
-/** Gera o arquivo .pdf da lista de compras. */
-export function gerarPdfListaCompras(dados: ListaComprasExportacao): Promise<Buffer> {
+/** Gera o arquivo .pdf da lista de compras (colorido por padrão). */
+export function gerarPdfListaCompras(
+  dados: ListaComprasExportacao,
+  c: PaletaExportacao = PALETA_COLORIDA,
+): Promise<Buffer> {
   const doc = new PDFDocument({
     size: "A4",
     margin: MARGEM,
@@ -325,12 +335,12 @@ export function gerarPdfListaCompras(dados: ListaComprasExportacao): Promise<Buf
     doc.on("error", reject);
   });
 
-  let y = desenharCabecalho(doc, dados);
-  y = desenharInformacoes(doc, dados, y);
-  y = desenharResumo(doc, dados, y);
-  y = desenharTabela(doc, dados, y);
-  desenharLegenda(doc, dados, y);
-  desenharRodapes(doc, dados);
+  let y = desenharCabecalho(doc, c, dados);
+  y = desenharInformacoes(doc, c, dados, y);
+  y = desenharResumo(doc, c, dados, y);
+  y = desenharTabela(doc, c, dados, y);
+  desenharLegenda(doc, c, dados, y);
+  desenharRodapes(doc, c, dados);
 
   doc.end();
   return pronto;

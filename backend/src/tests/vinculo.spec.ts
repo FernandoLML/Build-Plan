@@ -49,7 +49,7 @@ describe("POST /api/etapas/:etapaId/materiais", () => {
   it("cria vínculo material-etapa (201) com status inicial PREVISTO", async () => {
     const { token, etapaId, materialId } = await cenarioBase("dono");
 
-    const res = await criarVinculo(token, etapaId, { materialId, quantidade: 12, local: "Térreo" });
+    const res = await criarVinculo(token, etapaId, { materialId, quantidade: 8, local: "Térreo" });
 
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ etapaId, materialId, status: "PREVISTO", local: "Térreo" });
@@ -224,5 +224,79 @@ describe("DELETE /api/vinculos/:id", () => {
       .delete(`/api/vinculos/${vinculoId}`)
       .set("Authorization", `Bearer ${dono.token}`);
     expect(proprio.status).toBe(204);
+  });
+});
+
+describe("Saldo do material (vínculos não passam da quantidade do catálogo)", () => {
+  // O helper cria o material com 10 unidades ("saco").
+  it("aceita vincular exatamente o saldo, somando as etapas", async () => {
+    const { token, obraId, etapaId, materialId } = await cenarioBase("saldo");
+    const outraEtapa = await criarEtapa(token, obraId, "Alvenaria", 1);
+
+    expect((await criarVinculo(token, etapaId, { materialId, quantidade: 6 })).status).toBe(201);
+    expect((await criarVinculo(token, outraEtapa, { materialId, quantidade: 4 })).status).toBe(201);
+  });
+
+  it("recusa vínculo acima do saldo e informa o disponível (400)", async () => {
+    const { token, obraId, etapaId, materialId } = await cenarioBase("saldo");
+    const outraEtapa = await criarEtapa(token, obraId, "Alvenaria", 1);
+    await criarVinculo(token, etapaId, { materialId, quantidade: 7.5 });
+
+    const res = await criarVinculo(token, outraEtapa, { materialId, quantidade: 3 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe(
+      "Quantidade acima do disponível. Saldo para vincular: 2,5 saco (catálogo: 10 saco; já vinculado: 7,5 saco).",
+    );
+    expect(await prisma.vinculoMaterialEtapa.count({ where: { materialId } })).toBe(1);
+  });
+
+  it("recusa vincular material com quantidade zero no catálogo", async () => {
+    const { token, obraId, etapaId } = await cenarioBase("saldo");
+    const semQuantidade = await criarMaterial(token, obraId, { nome: "Sem quantidade", quantidade: 0 });
+
+    const res = await criarVinculo(token, etapaId, { materialId: semQuantidade, quantidade: 1 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Saldo para vincular: 0 saco/);
+  });
+
+  it("libera o saldo quando um vínculo é removido", async () => {
+    const { token, obraId, etapaId, materialId } = await cenarioBase("saldo");
+    const outraEtapa = await criarEtapa(token, obraId, "Alvenaria", 1);
+    const primeiro = await criarVinculo(token, etapaId, { materialId, quantidade: 10 });
+    expect((await criarVinculo(token, outraEtapa, { materialId, quantidade: 1 })).status).toBe(400);
+
+    await request(app).delete(`/api/vinculos/${primeiro.body.id}`).set("Authorization", `Bearer ${token}`);
+
+    expect((await criarVinculo(token, outraEtapa, { materialId, quantidade: 10 })).status).toBe(201);
+  });
+
+  it("não deixa reduzir a quantidade do material abaixo do já vinculado (400)", async () => {
+    const { token, etapaId, materialId } = await cenarioBase("saldo");
+    await criarVinculo(token, etapaId, { materialId, quantidade: 6 });
+    const editar = (quantidade: number) =>
+      request(app).put(`/api/materiais/${materialId}`).set("Authorization", `Bearer ${token}`).send({ quantidade });
+
+    const abaixo = await editar(5);
+    expect(abaixo.status).toBe(400);
+    expect(abaixo.body.message).toMatch(/menor que o total já vinculado às etapas \(6 saco\)/);
+
+    const igual = await editar(6);
+    expect(igual.status).toBe(200);
+    expect(igual.body.quantidade).toBe("6");
+  });
+
+  it("edições sem quantidade não consultam o saldo", async () => {
+    const { token, etapaId, materialId } = await cenarioBase("saldo");
+    await criarVinculo(token, etapaId, { materialId, quantidade: 10 });
+
+    const res = await request(app)
+      .put(`/api/materiais/${materialId}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ nome: "Cimento CP-IV" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.nome).toBe("Cimento CP-IV");
   });
 });
