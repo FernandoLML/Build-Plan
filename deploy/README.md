@@ -18,6 +18,7 @@ Arquivos desta pasta:
 | `docker-compose.prod.yml` | Sobe Postgres 17, aplica as migrações e inicia a API |
 | `.env.example` | Modelo do `.env` de produção (segredos) |
 | `nginx.conf.example` | Reverse proxy do Nginx para a API |
+| `backup.sh` | Backup do banco com rotação (manual ou via cron) |
 
 ## Antes de começar
 
@@ -75,10 +76,15 @@ cp .env.example .env
 
 openssl rand -hex 24      # cole em POSTGRES_PASSWORD
 openssl rand -base64 48   # cole em JWT_SECRET
-nano .env                 # preencha também CORS_ORIGINS (URL da Vercel, passo 7)
+nano .env                 # cole os dois segredos
+chmod 600 .env
 
 docker compose -f docker-compose.prod.yml up -d --build
 ```
+
+`CORS_ORIGINS` pode ficar com o valor do exemplo por enquanto: a URL real da Vercel
+só existe no passo 7, e é lá que ela é trocada. O valor precisa ser sempre uma
+origem válida (`https://`, minúsculas, sem barra no final), senão a API não inicia.
 
 O primeiro build leva alguns minutos. As migrações rodam sozinhas antes de a API
 iniciar (incluindo a extensão `pg_trgm`, usada na busca do SINAPI).
@@ -143,21 +149,69 @@ git pull && docker compose -f docker-compose.prod.yml up -d --build
 
 # Logs
 docker compose -f docker-compose.prod.yml logs -f api
-
-# Backup do banco (guarde o arquivo fora da EC2)
-docker compose -f docker-compose.prod.yml exec -T postgres \
-  sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' | gzip > backup-$(date +%F).sql.gz
 ```
+
+O frontend não precisa de comando: a Vercel publica sozinha a cada push na `main`.
 
 Os contêineres voltam sozinhos após reinício da máquina (`restart: unless-stopped`).
 Os dados do banco ficam no volume `buildplan-prod_postgres_data`; nunca use
 `down -v` em produção, pois isso apaga o volume.
+
+### Backup do banco
+
+O `backup.sh` gera `~/backups/buildplan-AAAA-MM-DD-HHMM.sql.gz`, confere se o dump
+está íntegro e apaga os arquivos com mais de 14 dias.
+
+```bash
+# Uma vez, para testar
+~/Build-Plan/deploy/backup.sh
+
+# Agendar: todo dia às 06:00 UTC (03:00 de Brasília)
+mkdir -p ~/backups
+( crontab -l 2>/dev/null; echo '0 6 * * * $HOME/Build-Plan/deploy/backup.sh >> $HOME/backups/backup.log 2>&1' ) | crontab -
+crontab -l
+```
+
+- [ ] `tail ~/backups/backup.log` mostra uma linha `OK:` por dia.
+
+Esses arquivos ficam no disco da própria EC2: cobrem erro humano e dado corrompido,
+mas não a perda da máquina. Para ter uma cópia fora dela:
+
+```powershell
+# No seu computador: baixa os backups para a pasta atual
+scp -i .\sua-chave.pem "ubuntu@api.seu-dominio.com:backups/*.sql.gz" .
+```
+
+Outra opção, sem comando nenhum, são os snapshots automáticos do disco:
+console da AWS > EC2 > **Lifecycle Manager** > política de snapshot do EBS.
+
+**Restaurar** (substitui os dados atuais pelos do arquivo):
+
+```bash
+cd ~/Build-Plan/deploy
+docker compose -f docker-compose.prod.yml stop api
+gunzip -c ~/backups/buildplan-AAAA-MM-DD-HHMM.sql.gz | \
+  docker compose -f docker-compose.prod.yml exec -T postgres \
+  sh -c 'psql -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" "$POSTGRES_DB"'
+docker compose -f docker-compose.prod.yml start api
+```
+
+### Pausar e religar
+
+A aplicação fica no ar 24 horas; não há nada para ligar ou desligar no dia a dia.
+Para parar de pagar pela instância por um tempo, use **Stop** no console da EC2
+(os dados ficam no disco) e **Start** para voltar: API e banco sobem sozinhos.
+Enquanto a instância está parada, o disco e o Elastic IP continuam sendo cobrados.
+
+Nunca use **Terminate**: ele apaga a máquina e o disco com o banco.
 
 ## Limites conhecidos
 
 - O rate limit guarda os contadores em memória: vale para **uma** instância da API
   e zera quando ela reinicia. Com mais de uma instância, seria preciso um store
   compartilhado (Redis).
-- Não há backup automático: o comando acima é manual. Para algo recorrente, use um
-  `cron` enviando o arquivo para o S3, ou snapshots do volume EBS.
+- O backup agendado fica na mesma máquina; a cópia externa (download ou snapshot
+  do EBS) depende de configuração à parte.
+- O workflow `sinapi-import.yml` do GitHub Actions não alcança este banco (a porta
+  5432 não é pública): a importação do SINAPI em produção é o comando do passo 6.
 - `/metrics` ainda não existe na API; o Nginx já o deixa restrito à própria máquina.

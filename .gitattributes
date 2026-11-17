@@ -1,0 +1,2 @@
+# Scripts de shell rodam no Linux (EC2): sempre LF, mesmo com checkout no Windows.
+*.sh text eol=lf
