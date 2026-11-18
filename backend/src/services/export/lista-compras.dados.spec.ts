@@ -95,6 +95,8 @@ describe("slugificar / nomeArquivoExportacao", () => {
   it("monta o nome do arquivo com a extensão", () => {
     expect(nomeArquivoExportacao("Alvenaria", "xlsx")).toBe("lista-compras-alvenaria.xlsx");
     expect(nomeArquivoExportacao("Geral", "pdf")).toBe("lista-compras-geral.pdf");
+    expect(nomeArquivoExportacao("Fundação", "pdf", "pb")).toBe("lista-compras-fundacao-pb.pdf");
+    expect(nomeArquivoExportacao("Fundação", "xlsx", "cor")).toBe("lista-compras-fundacao.xlsx");
   });
 });
 

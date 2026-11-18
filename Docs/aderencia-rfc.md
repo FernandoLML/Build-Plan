@@ -1,6 +1,6 @@
 # Build-Plan — Aderência ao RFC
 
-> Última revisão em 2026-11-17, sobre a branch `feature-observabilidade-recuperacao-cd`.
+> Última revisão em 2026-11-17, sobre a branch `fix-correcoes-pos-revisao`.
 > Compara o que o [RFC](RFC.md) prometeu com o que está no código: onde cada requisito foi implementado, o que mudou durante o desenvolvimento e por quê, e o que ficou de fora.
 > Para a descrição técnica completa, ver o [raio-x arquitetural](arquitetura-raio-x.md).
 
@@ -35,7 +35,7 @@ O único item não implementado é o **worker de alertas de prazo** (§5.1 e mar
 | **RF02** Importação de documentos | Memorial em CSV com pré-visualização: o usuário revisa as linhas aceitas e rejeitadas antes de gravar. |
 | **RF03** Catálogo de insumos | `material.service.ts`: nome, especificação, unidade, quantidade, origem (`MEMORIAL` ou `MANUAL`) e código SINAPI. |
 | **RF04** Associação dinâmica | `VinculoMaterialEtapa`: o mesmo material em várias etapas, cada vínculo com quantidade, local e status próprios. |
-| **RF05** Relatório de compras | Lista por etapa com preço de referência do SINAPI e exportação em CSV, Excel e PDF (`export.service.ts`). |
+| **RF05** Relatório de compras | Lista por etapa com preço de referência do SINAPI e exportação em CSV, Excel e PDF (`export.service.ts`); Excel e PDF também em versão preto e branco, para impressão. |
 | **RF06** Monitoramento de status | `StatusVinculo` (`PREVISTO → RECEBIDO → APLICADO`) com datas de recebimento e aplicação. |
 
 Entregue além do RFC: cronograma de tarefas com progresso físico por etapa e dashboard de indicadores da obra.
@@ -45,7 +45,7 @@ Entregue além do RFC: cronograma de tarefas com progresso físico por etapa e d
 | Requisito | Como foi atendido |
 |---|---|
 | **RNF01** Usabilidade | Interface única (React, shadcn/ui), navegação lateral fixa, estados de carregamento, vazio e erro em todas as telas. |
-| **RNF02** Confiabilidade | Validação com Zod em toda entrada da API; índices únicos contra duplicidade (e-mail, vínculo material-etapa), com resposta 409. |
+| **RNF02** Confiabilidade | Validação com Zod em toda entrada da API; índices únicos contra duplicidade (e-mail, vínculo material-etapa), com resposta 409; o total vinculado de um material às etapas nunca passa da quantidade dele no catálogo (`material-saldo.ts`, com trava de linha contra vínculos simultâneos). |
 | **RNF03** Recuperação de informação | Busca no catálogo de materiais por nome, código e especificação; busca no SINAPI com índice GIN (`pg_trgm`). |
 | **RNF04** Auditabilidade | `LogRastreabilidade`: cada mudança de status grava usuário, status anterior, novo status e data, na mesma transação. |
 

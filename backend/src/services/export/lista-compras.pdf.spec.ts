@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from "@jest/globals";
 import { gerarPdfListaCompras } from "./lista-compras.pdf.js";
+import { PALETA_PRETO_E_BRANCO } from "./marca.js";
 import type { ItemExportacao, ListaComprasExportacao } from "./lista-compras.dados.js";
 
 const item: ItemExportacao = {
@@ -49,6 +50,18 @@ describe("gerarPdfListaCompras", () => {
     const pdf = await gerarPdfListaCompras(dados(muitos));
 
     expect(contarPaginas(pdf)).toBeGreaterThan(1);
+  });
+
+  it("gera a versão preto e branco com a mesma paginação", async () => {
+    const pendente: ItemExportacao = { ...item, codigoSinapi: null, precoUnitario: null, origemPreco: "PENDENTE" };
+    const lista = dados(Array.from({ length: 60 }, (_, i) => (i % 3 === 0 ? pendente : item)));
+
+    const colorido = await gerarPdfListaCompras(lista);
+    const pb = await gerarPdfListaCompras(lista, PALETA_PRETO_E_BRANCO);
+
+    expect(pb.toString("latin1").startsWith("%PDF-")).toBe(true);
+    expect(contarPaginas(pb)).toBe(contarPaginas(colorido));
+    expect(pb.equals(colorido)).toBe(false);
   });
 
   it("gera o documento também para lista vazia", async () => {

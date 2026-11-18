@@ -163,6 +163,30 @@ describe("GET /api/listas-compras/:id/export.pdf", () => {
     expect((res.body as Buffer).subarray(0, 5).toString()).toBe("%PDF-");
   });
 
+  it("gera a versão preto e branco com ?tema=pb (sufixo -pb no nome)", async () => {
+    const { token, listaId } = await cenarioComLista("dono");
+
+    const pdf = await baixar(token, `/api/listas-compras/${listaId}/export.pdf?tema=pb`);
+    const xlsx = await baixar(token, `/api/listas-compras/${listaId}/export.xlsx?tema=pb`);
+
+    expect(pdf.status).toBe(200);
+    expect(pdf.headers["content-disposition"]).toBe('attachment; filename="lista-compras-fundacao-pb.pdf"');
+    expect((pdf.body as Buffer).subarray(0, 5).toString()).toBe("%PDF-");
+    expect(xlsx.status).toBe(200);
+    expect(xlsx.headers["content-disposition"]).toBe('attachment; filename="lista-compras-fundacao-pb.xlsx"');
+  });
+
+  it("recusa um tema desconhecido (400)", async () => {
+    const { token, listaId } = await cenarioComLista("dono");
+
+    const res = await request(app)
+      .get(`/api/listas-compras/${listaId}/export.pdf?tema=sepia`)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.issues[0]).toMatchObject({ campo: "tema" });
+  });
+
   it("bloqueia exportação de lista de outro usuário (404)", async () => {
     const dono = await cenarioComLista("dono");
     const outro = await criarUsuarioAutenticado("outro");

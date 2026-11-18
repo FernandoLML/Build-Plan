@@ -102,20 +102,20 @@ export function ObraFormDialog({ open, onOpenChange, obra }: Readonly<ObraFormDi
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {erro && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>
+            <p className="rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-400">{erro}</p>
           )}
 
           <div className="space-y-1">
             <Label htmlFor="nome">Nome</Label>
             <Input id="nome" {...register("nome")} />
-            {errors.nome && <p className="text-xs text-red-600">{errors.nome.message}</p>}
+            {errors.nome && <p className="text-xs text-red-400">{errors.nome.message}</p>}
           </div>
 
           <div className="space-y-1">
             <Label htmlFor="descricao">Descrição</Label>
             <Input id="descricao" {...register("descricao")} />
             {errors.descricao && (
-              <p className="text-xs text-red-600">{errors.descricao.message}</p>
+              <p className="text-xs text-red-400">{errors.descricao.message}</p>
             )}
           </div>
 
@@ -123,7 +123,7 @@ export function ObraFormDialog({ open, onOpenChange, obra }: Readonly<ObraFormDi
             <Label htmlFor="endereco">Endereço</Label>
             <Input id="endereco" {...register("endereco")} />
             {errors.endereco && (
-              <p className="text-xs text-red-600">{errors.endereco.message}</p>
+              <p className="text-xs text-red-400">{errors.endereco.message}</p>
             )}
           </div>
 

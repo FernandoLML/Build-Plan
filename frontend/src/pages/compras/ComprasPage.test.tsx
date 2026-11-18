@@ -196,7 +196,7 @@ describe("ComprasPage — exportação", () => {
     await user.click(screen.getByRole("button", { name: /Exportar Excel \(\.xlsx\)/ }));
 
     await waitFor(() => expect(cliques).toHaveLength(1));
-    expect(comprasApi.exportarXlsx).toHaveBeenCalledWith("lista-1");
+    expect(comprasApi.exportarXlsx).toHaveBeenCalledWith("lista-1", "cor");
     expect(createObjectURL).toHaveBeenCalledWith(planilha);
     expect(cliques[0].download).toBe("lista-compras-fundacao.xlsx");
     expect(cliques[0].href).toBe("blob:lista");
@@ -210,8 +210,36 @@ describe("ComprasPage — exportação", () => {
     await user.click(screen.getByRole("button", { name: /Exportar PDF/ }));
 
     await waitFor(() => expect(cliques).toHaveLength(1));
-    expect(comprasApi.exportarPdf).toHaveBeenCalledWith("lista-1");
+    expect(comprasApi.exportarPdf).toHaveBeenCalledWith("lista-1", "cor");
     expect(cliques[0].download).toBe("lista-compras-fundacao.pdf");
+  });
+
+  it("com a opção preto e branco, pede o tema pb e acrescenta -pb ao nome (Excel e PDF)", async () => {
+    vi.mocked(comprasApi.exportarPdf).mockResolvedValue(new Blob(["%PDF"], { type: "application/pdf" }));
+    vi.mocked(comprasApi.exportarXlsx).mockResolvedValue(new Blob(["xlsx"]));
+    const user = await renderizarEsperandoEtapa();
+
+    await user.click(screen.getByRole("checkbox", { name: /preto e branco/i }));
+    await user.click(screen.getByRole("button", { name: /Exportar PDF/ }));
+    await waitFor(() => expect(cliques).toHaveLength(1));
+    await user.click(screen.getByRole("button", { name: /Exportar Excel \(\.xlsx\)/ }));
+    await waitFor(() => expect(cliques).toHaveLength(2));
+
+    expect(comprasApi.exportarPdf).toHaveBeenCalledWith("lista-1", "pb");
+    expect(comprasApi.exportarXlsx).toHaveBeenCalledWith("lista-1", "pb");
+    expect(cliques[0].download).toBe("lista-compras-fundacao-pb.pdf");
+    expect(cliques[1].download).toBe("lista-compras-fundacao-pb.xlsx");
+  });
+
+  it("a opção preto e branco não altera o CSV, que não tem cores", async () => {
+    vi.mocked(comprasApi.exportarCsv).mockResolvedValue("Descricao,Unidade");
+    const user = await renderizarEsperandoEtapa();
+
+    await user.click(screen.getByRole("checkbox", { name: /preto e branco/i }));
+    await user.click(screen.getByRole("button", { name: /Exportar CSV/ }));
+
+    await waitFor(() => expect(cliques).toHaveLength(1));
+    expect(cliques[0].download).toBe("lista-compras-fundacao.csv");
   });
 
   it("mantém a exportação CSV", async () => {

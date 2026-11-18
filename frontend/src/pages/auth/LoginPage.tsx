@@ -52,12 +52,7 @@ export function LoginPage() {
         </div>
 
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="senha" className="text-slate-300">Senha</Label>
-            <Link to="/esqueci-senha" className={`text-xs ${LINK}`}>
-              Esqueci minha senha
-            </Link>
-          </div>
+          <Label htmlFor="senha" className="text-slate-300">Senha</Label>
           <Input id="senha" type="password" placeholder="••••••••" {...register("senha")} />
           {errors.senha && <p className="text-xs text-red-400">{errors.senha.message}</p>}
         </div>
@@ -67,12 +62,19 @@ export function LoginPage() {
         </Button>
       </form>
 
-      <p className="text-center text-sm text-slate-400">
-        Não tem conta?{" "}
-        <Link to="/register" className={LINK}>
-          Cadastre-se
-        </Link>
-      </p>
+      <div className="space-y-2 text-center text-sm text-slate-400">
+        <p>
+          <Link to="/esqueci-senha" className={LINK}>
+            Esqueci minha senha
+          </Link>
+        </p>
+        <p>
+          Não tem conta?{" "}
+          <Link to="/register" className={LINK}>
+            Cadastre-se
+          </Link>
+        </p>
+      </div>
     </AuthCard>
   );
 }

@@ -79,4 +79,18 @@ describe("MaterialDetailPanel", () => {
     expect(onEditar).toHaveBeenCalledWith(material);
     expect(onExcluir).toHaveBeenCalledWith(material);
   });
+
+  it("mostra quanto do material já está vinculado e quanto está livre", () => {
+    renderPainel({ saldo: { total: 10, vinculado: 7.5, disponivel: 2.5 } });
+
+    expect(screen.getByTestId("saldo-detalhe")).toHaveTextContent(
+      "Vinculado às etapas: 7,5 sc · disponível: 2,5 sc",
+    );
+  });
+
+  it("não mostra o saldo enquanto os vínculos carregam", () => {
+    renderPainel({ saldo: { total: 10, vinculado: 0, disponivel: 10 }, carregandoVinculos: true });
+
+    expect(screen.queryByTestId("saldo-detalhe")).not.toBeInTheDocument();
+  });
 });

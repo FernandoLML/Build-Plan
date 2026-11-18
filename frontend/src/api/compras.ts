@@ -4,6 +4,9 @@
 import { api } from "@/lib/api";
 import type { AtualizarItemPayload, ItemCompra, ListaCompras } from "@/types/compras";
 
+/** "cor" (padrão) ou "pb": versão preto e branco, para impressoras sem cor. */
+export type TemaExportacao = "cor" | "pb";
+
 export const comprasApi = {
   // GET /api/obras/:obraId/listas-compras
   async listarPorObra(obraId: string): Promise<ListaCompras[]> {
@@ -41,15 +44,21 @@ export const comprasApi = {
     return data;
   },
 
-  // GET /api/listas-compras/:id/export.xlsx  (planilha estilizada, binário)
-  async exportarXlsx(id: string): Promise<Blob> {
-    const { data } = await api.get<Blob>(`/listas-compras/${id}/export.xlsx`, { responseType: "blob" });
+  // GET /api/listas-compras/:id/export.xlsx?tema=pb  (planilha estilizada, binário)
+  async exportarXlsx(id: string, tema: TemaExportacao = "cor"): Promise<Blob> {
+    const { data } = await api.get<Blob>(`/listas-compras/${id}/export.xlsx`, {
+      responseType: "blob",
+      params: tema === "pb" ? { tema } : undefined,
+    });
     return data;
   },
 
-  // GET /api/listas-compras/:id/export.pdf  (documento para impressão, binário)
-  async exportarPdf(id: string): Promise<Blob> {
-    const { data } = await api.get<Blob>(`/listas-compras/${id}/export.pdf`, { responseType: "blob" });
+  // GET /api/listas-compras/:id/export.pdf?tema=pb  (documento para impressão, binário)
+  async exportarPdf(id: string, tema: TemaExportacao = "cor"): Promise<Blob> {
+    const { data } = await api.get<Blob>(`/listas-compras/${id}/export.pdf`, {
+      responseType: "blob",
+      params: tema === "pb" ? { tema } : undefined,
+    });
     return data;
   },
 };

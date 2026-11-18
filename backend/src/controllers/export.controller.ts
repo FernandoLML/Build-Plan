@@ -3,7 +3,7 @@
 
 import { Request, Response } from "express";
 import { exportService, type ArquivoExportado } from "../services/export.service.js";
-import { listaIdParamSchema } from "../schemas/lista-compras.schema.js";
+import { exportacaoQuerySchema, listaIdParamSchema } from "../schemas/lista-compras.schema.js";
 
 export class ExportController {
   // GET /api/listas-compras/:id/export.csv
@@ -16,17 +16,19 @@ export class ExportController {
     return res.status(200).send(csv);
   }
 
-  // GET /api/listas-compras/:id/export.xlsx
+  // GET /api/listas-compras/:id/export.xlsx?tema=cor|pb
   public async listaComprasXlsx(req: Request, res: Response): Promise<Response> {
     const { id } = listaIdParamSchema.parse(req.params);
-    const arquivo = await exportService.exportarListaComprasXlsx(id, req.userId);
+    const { tema } = exportacaoQuerySchema.parse(req.query);
+    const arquivo = await exportService.exportarListaComprasXlsx(id, req.userId, tema);
     return enviarArquivo(res, arquivo, MIME_XLSX);
   }
 
-  // GET /api/listas-compras/:id/export.pdf
+  // GET /api/listas-compras/:id/export.pdf?tema=cor|pb
   public async listaComprasPdf(req: Request, res: Response): Promise<Response> {
     const { id } = listaIdParamSchema.parse(req.params);
-    const arquivo = await exportService.exportarListaComprasPdf(id, req.userId);
+    const { tema } = exportacaoQuerySchema.parse(req.query);
+    const arquivo = await exportService.exportarListaComprasPdf(id, req.userId, tema);
     return enviarArquivo(res, arquivo, "application/pdf");
   }
 }

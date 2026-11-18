@@ -14,7 +14,11 @@ export function slugificar(texto: string): string {
   return slug || "lista";
 }
 
-/** lista-compras-<etapa>.<extensao> */
-export function nomeArquivoListaCompras(etapaNome: string, extensao: "xlsx" | "pdf" | "csv"): string {
-  return `lista-compras-${slugificar(etapaNome)}.${extensao}`;
+/** lista-compras-<etapa>.<extensao>; a versão preto e branco ganha "-pb". */
+export function nomeArquivoListaCompras(
+  etapaNome: string,
+  extensao: "xlsx" | "pdf" | "csv",
+  pretoEBranco = false,
+): string {
+  return `lista-compras-${slugificar(etapaNome)}${pretoEBranco ? "-pb" : ""}.${extensao}`;
 }
