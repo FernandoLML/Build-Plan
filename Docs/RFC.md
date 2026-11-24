@@ -317,7 +317,7 @@ Após o catálogo estar montado e os vínculos definidos, o usuário acompanha o
 
 ## 4. Mockups e Experiência do Usuário (UX)
 
-Esta seção apresenta a visualização inicial das interfaces, a arquitetura da informação e o fluxo de interação detalhado do sistema Build-Plan antes da codificação das rotas dinâmicas em Django. O design prioriza uma experiência fluida de controle operacional de insumos e etapas diretamente associadas a documentos de engenharia civil.
+Esta seção apresenta a visualização inicial das interfaces, a arquitetura da informação e o fluxo de interação detalhado do sistema Build-Plan antes da codificação das telas em React e das rotas da API REST em Node.js. O design prioriza uma experiência fluida de controle operacional de insumos e etapas diretamente associadas a documentos de engenharia civil.
 
 ### 4.1 Fluxo de Navegação
 
