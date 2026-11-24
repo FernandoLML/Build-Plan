@@ -24,6 +24,7 @@ Arquivos desta pasta:
 | `nginx.conf.example` | Reverse proxy do Nginx para a API |
 | `backup.sh` | Backup do banco com rotação (manual ou via cron) |
 | `deploy.sh` | Atualiza a API com as imagens publicadas pelo CI (usado pelo deploy automático e para rollback) |
+| `verificar-producao.sh` | Confere de uma vez contêineres, versão, métricas, Grafana, bloqueio do `/metrics`, backup e memória |
 | `prometheus.yml` | Configuração do Prometheus: coleta as métricas da API a cada 15 s |
 | `grafana/` | Datasource e dashboard do Grafana, carregados automaticamente |
 
@@ -253,6 +254,12 @@ docker compose -f docker-compose.prod.yml logs -f api
 
 # Estado dos contêineres
 docker compose -f docker-compose.prod.yml ps
+```
+
+Para conferir tudo de uma vez (só lê, não altera nada; sai com o número de falhas):
+
+```bash
+~/Build-Plan/deploy/verificar-producao.sh api.seu-dominio.com
 ```
 
 A API é atualizada pelo deploy automático (passo 9) a cada merge na `main`, e o
